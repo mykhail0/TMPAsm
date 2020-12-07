@@ -50,6 +50,20 @@ struct Num {
     constexpr static int value = N;
 };
 
+struct Id {
+    constexpr static int MAX_LENGTH = 6;
+    constexpr char *name;
+  private:
+    constexpr static bool check_id(const char *s) {
+        bool ans = 
+    }
+
+    constexpr Id(const char *s) : name(s) {
+        static_assert(s != NULL);
+        static_assert(Id::check_id(s));
+    }
+};
+
 /*
 template <typename Arg1, typename Arg2>
 struct Add {
