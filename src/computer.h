@@ -6,7 +6,7 @@
 
 //---------------DEBUG----------------------
 template<size_t N, typename Type>
-inline void printMemory(std::array <Type, N> &mem) {
+inline void printMemory(std::array<Type, N> &mem) {
     std::cout << "-----MEMORY STATE----" << std::endl;
     for (size_t i = 0; i < N; i++) {
         std::cout << mem[i] << std::endl;
@@ -24,7 +24,7 @@ enum OpType {
 template<int a, int b>
 struct TestOp {
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(std::array <memType, memSize> &mem, bool &ZF, bool &SF) {
+    static constexpr void execute(std::array<memType, memSize> &mem, bool &ZF, bool &SF) {
         mem[a] = b;
     }
 
@@ -41,7 +41,7 @@ template<uint64_t Id>
 struct Label {
 
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(std::array <memType, memSize> &mem, bool &ZF, bool &SF) {}
+    static constexpr void execute(std::array<memType, memSize> &mem, bool &ZF, bool &SF) {}
 
     static constexpr OpType type = LABEL;
     static constexpr uint64_t id = Id;
@@ -51,7 +51,7 @@ template<uint64_t Id>
 struct Jmp {
 
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(std::array <memType, memSize> &mem, bool &ZF, bool &SF) {
+    static constexpr void execute(std::array<memType, memSize> &mem, bool &ZF, bool &SF) {
         labels::template find_and_run<memSize, memType, labels>(Id, mem, ZF, SF);
     }
 
@@ -62,7 +62,7 @@ struct Jmp {
 template<uint64_t Id>
 struct Jz {
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(std::array <memType, memSize> &mem, bool &ZF, bool &SF) {
+    static constexpr void execute(std::array<memType, memSize> &mem, bool &ZF, bool &SF) {
         labels::template find_and_run<memSize, memType, labels>(Id, mem, ZF, SF);
     }
 
@@ -73,7 +73,7 @@ struct Jz {
 template<uint64_t Id>
 struct Js {
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(std::array <memType, memSize> &mem, bool &ZF, bool &SF) {
+    static constexpr void execute(std::array<memType, memSize> &mem, bool &ZF, bool &SF) {
         labels::template find_and_run<memSize, memType, labels>(Id, mem, ZF, SF);
     }
 
@@ -124,7 +124,7 @@ template<template<typename...> class Program, typename Label,
 struct LabelList<Program<>, Label, Labels...> {
     template<size_t memSize, typename memType, typename labels>
     static constexpr void find_and_run(uint64_t id,
-                                       std::array <memType, memSize> &mem,
+                                       std::array<memType, memSize> &mem,
                                        bool &ZF, bool &SF) {
         // std::cout << Label::label::type << std::endl;
         if (Label::label::id == id) {
@@ -141,7 +141,7 @@ template<template<typename...> class Program, typename Label>
 struct LabelList<Program<>, Label> {
     template<size_t memSize, typename memType, typename labels>
     static constexpr void find_and_run(uint64_t id,
-                                       std::array <memType, memSize> &mem,
+                                       std::array<memType, memSize> &mem,
                                        bool &ZF, bool &SF) {
         // std::cout << Label::label::type << std::endl;
         if (Label::label::id == id) {
@@ -154,14 +154,14 @@ struct LabelList<Program<>, Label> {
 template<typename... Ops>
 struct Program {
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void run(std::array <memType, memSize> &mem, bool &ZF, bool &SF);
+    static constexpr void run(std::array<memType, memSize> &mem, bool &ZF, bool &SF);
 };
 
 template<typename Op, typename... Ops>
 struct Program<Op, Ops...> {
     // recursion call
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void run(std::array <memType, memSize> &mem, bool &ZF, bool &SF) {
+    static constexpr void run(std::array<memType, memSize> &mem, bool &ZF, bool &SF) {
         switch (Op::type) {
             case JMP:
                 std::cout << "JUMP" << std::endl;
@@ -196,7 +196,7 @@ template<typename Op>
 struct Program<Op> {
     // base of recursion
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void run(std::array <memType, memSize> &mem, bool &ZF, bool &SF) {
+    static constexpr void run(std::array<memType, memSize> &mem, bool &ZF, bool &SF) {
         switch (Op::type) {
             case JMP:
                 std::cout << "JMP" << std::endl;
@@ -253,8 +253,8 @@ struct Add {
 template<size_t N, typename Type>
 struct Computer {
     template<typename T>
-    static constexpr std::array <Type, N> boot() {
-        std::array <Type, N> memory{};
+    static constexpr std::array<Type, N> boot() {
+        std::array<Type, N> memory{};
         bool ZF = false, SF = false;
         using labels = typename LabelList<T>::result;
         // std::array<uint64_t, n_labels> labels;
