@@ -23,7 +23,7 @@ enum OpType {
 // Przykładowa operacja
 template<int a, int b>
 struct TestOp {
-    template<size_t memSize, typename memType>
+    template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(std::array <memType, memSize> &mem, bool &ZF, bool &SF) {
         mem[a] = b;
     }
@@ -40,7 +40,7 @@ struct LabelHolder {
 template<uint64_t Id>
 struct Label {
 
-    template<size_t memSize, typename memType>
+    template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(std::array <memType, memSize> &mem, bool &ZF, bool &SF) {}
 
     static constexpr OpType type = LABEL;
@@ -108,8 +108,8 @@ struct LabelList<Program<>, Label, Labels...> {
         if (Label::label::id == id) {
             Label::program::template run<memSize, memType, labels>(mem, ZF, SF);
         } else {
-            LabelList<Program<>, Labels...>::template find_and_run<
-                    memSize, memType, labels>(mem, ZF, SF);
+            LabelList<Program<>, Labels...>::template
+            find_and_run<memSize, memType, labels>(mem, ZF, SF);
         }
     }
 };
@@ -146,7 +146,7 @@ struct Program<Op, Ops...> {
                 Op::template execute<memSize, memType, labels>(mem, ZF, SF);
                 break;
             default:
-                Op::template execute<memSize, memType>(mem, ZF, SF);
+                Op::template execute<memSize, memType, labels>(mem, ZF, SF);
                 printMemory<memSize, memType>(mem);
                 Program<Ops...>::template run<memSize, memType, labels>(mem, ZF, SF);
                 break;
@@ -165,7 +165,7 @@ struct Program<Op> {
                 Op::template execute<memSize, memType, labels>(mem, ZF, SF);
                 break;
             default:
-                Op::template execute<memSize, memType>(mem, ZF, SF);
+                Op::template execute<memSize, memType, labels>(mem, ZF, SF);
                 printMemory<memSize, memType>(mem);
                 break;
         }
