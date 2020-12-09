@@ -131,7 +131,7 @@ struct LabelList<Program<>, Label, Labels...> {
             Label::program::template run<memSize, memType, labels>(mem, ZF, SF);
         } else {
             LabelList<Program<>, Labels...>::template
-            find_and_run<memSize, memType, labels>(mem, ZF, SF);
+            find_and_run<memSize, memType, labels>(id, mem, ZF, SF);
         }
     }
 };
