@@ -17,7 +17,7 @@ inline void printMemory(std::array <Type, N> &mem) {
 //-------------OPERATIONS---------------------------
 
 enum OpType {
-    TEST, LABEL, JUMP
+    TEST, LABEL, JMP, JZ, JS
 };
 
 // Przykładowa operacja
@@ -48,14 +48,36 @@ struct Label {
 };
 
 template<uint64_t Id>
-struct Jump {
+struct Jmp {
 
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(std::array <memType, memSize> &mem, bool &ZF, bool &SF) {
         labels::template find_and_run<memSize, memType, labels>(Id, mem, ZF, SF);
     }
 
-    static constexpr OpType type = JUMP;
+    static constexpr OpType type = JMP;
+    static constexpr uint64_t id = Id;
+};
+
+template<uint64_t Id>
+struct Jz {
+    template<size_t memSize, typename memType, typename labels>
+    static constexpr void execute(std::array <memType, memSize> &mem, bool &ZF, bool &SF) {
+        labels::template find_and_run<memSize, memType, labels>(Id, mem, ZF, SF);
+    }
+
+    static constexpr OpType type = JZ;
+    static constexpr uint64_t id = Id;
+};
+
+template<uint64_t Id>
+struct Js {
+    template<size_t memSize, typename memType, typename labels>
+    static constexpr void execute(std::array <memType, memSize> &mem, bool &ZF, bool &SF) {
+        labels::template find_and_run<memSize, memType, labels>(Id, mem, ZF, SF);
+    }
+
+    static constexpr OpType type = JS;
     static constexpr uint64_t id = Id;
 };
 
@@ -141,9 +163,25 @@ struct Program<Op, Ops...> {
     template<size_t memSize, typename memType, typename labels>
     static constexpr void run(std::array <memType, memSize> &mem, bool &ZF, bool &SF) {
         switch (Op::type) {
-            case JUMP:
+            case JMP:
                 std::cout << "JUMP" << std::endl;
                 Op::template execute<memSize, memType, labels>(mem, ZF, SF);
+                break;
+            case JZ:
+                std::cout << "JUMPZ" << std::endl;
+                if (ZF) {
+                    Op::template execute<memSize, memType, labels>(mem, ZF, SF);
+                } else {
+                    Program<Ops...>::template run<memSize, memType, labels>(mem, ZF, SF);
+                }
+                break;
+            case JS:
+                std::cout << "JUMPS" << std::endl;
+                if (SF) {
+                    Op::template execute<memSize, memType, labels>(mem, ZF, SF);
+                } else {
+                    Program<Ops...>::template run<memSize, memType, labels>(mem, ZF, SF);
+                }
                 break;
             default:
                 Op::template execute<memSize, memType, labels>(mem, ZF, SF);
@@ -160,9 +198,21 @@ struct Program<Op> {
     template<size_t memSize, typename memType, typename labels>
     static constexpr void run(std::array <memType, memSize> &mem, bool &ZF, bool &SF) {
         switch (Op::type) {
-            case JUMP:
-                std::cout << "JUMP" << std::endl;
+            case JMP:
+                std::cout << "JMP" << std::endl;
                 Op::template execute<memSize, memType, labels>(mem, ZF, SF);
+                break;
+            case JZ:
+                std::cout << "JZ" << std::endl;
+                if (ZF) {
+                    Op::template execute<memSize, memType, labels>(mem, ZF, SF);
+                }
+                break;
+            case JS:
+                std::cout << "JS" << std::endl;
+                if (SF) {
+                    Op::template execute<memSize, memType, labels>(mem, ZF, SF);
+                }
                 break;
             default:
                 Op::template execute<memSize, memType, labels>(mem, ZF, SF);
