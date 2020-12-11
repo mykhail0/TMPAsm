@@ -1,0 +1,50 @@
+	.text
+	.file	"computer.cc"
+	.globl	main                            # -- Begin function main
+	.p2align	4, 0x90
+	.type	main,@function
+main:                                   # @main
+	.cfi_startproc
+# %bb.0:
+	.p2align	4, 0x90
+.LBB0_1:                                # =>This Inner Loop Header: Depth=1
+	jmp	.LBB0_1
+.Lfunc_end0:
+	.size	main, .Lfunc_end0-main
+	.cfi_endproc
+                                        # -- End function
+	.section	.text.startup,"ax",@progbits
+	.p2align	4, 0x90                         # -- Begin function _GLOBAL__sub_I_computer.cc
+	.type	_GLOBAL__sub_I_computer.cc,@function
+_GLOBAL__sub_I_computer.cc:             # @_GLOBAL__sub_I_computer.cc
+	.cfi_startproc
+# %bb.0:
+	pushq	%rbx
+	.cfi_def_cfa_offset 16
+	.cfi_offset %rbx, -16
+	leaq	_ZStL8__ioinit(%rip), %rbx
+	movq	%rbx, %rdi
+	callq	_ZNSt8ios_base4InitC1Ev@PLT
+	movq	_ZNSt8ios_base4InitD1Ev@GOTPCREL(%rip), %rdi
+	leaq	__dso_handle(%rip), %rdx
+	movq	%rbx, %rsi
+	popq	%rbx
+	.cfi_def_cfa_offset 8
+	jmp	__cxa_atexit@PLT                # TAILCALL
+.Lfunc_end1:
+	.size	_GLOBAL__sub_I_computer.cc, .Lfunc_end1-_GLOBAL__sub_I_computer.cc
+	.cfi_endproc
+                                        # -- End function
+	.type	_ZStL8__ioinit,@object          # @_ZStL8__ioinit
+	.local	_ZStL8__ioinit
+	.comm	_ZStL8__ioinit,1,1
+	.hidden	__dso_handle
+	.section	.init_array,"aw",@init_array
+	.p2align	3
+	.quad	_GLOBAL__sub_I_computer.cc
+	.ident	"clang version 11.0.0"
+	.section	".note.GNU-stack","",@progbits
+	.addrsig
+	.addrsig_sym _GLOBAL__sub_I_computer.cc
+	.addrsig_sym _ZStL8__ioinit
+	.addrsig_sym __dso_handle
