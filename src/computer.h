@@ -2,6 +2,7 @@
 #define COMPUTER_H
 
 #include <array>
+#include <utility>
 #include <iostream>
 #include <cassert>
 
@@ -10,14 +11,14 @@ namespace {
     // [0..9], [a-z]
     constexpr int ALLOWED_CHAR_CNT = ('z' - 'a' + 1) + ('9' - '0' + 1);
 
-    constexpr int encode_char(const char c) {
+    constexpr int encode_char(char c) {
         if ('0' <= c && c <= '9')
             return static_cast<int>(c) - '0';
         if ('a' <= c && c <= 'z')
             return c - 'a' + 10;
         if ('A' <= c && c <= 'Z')
             return c - 'A' + 10;
-        throw "Char out of range";
+        throw "Character out of range";
     }
 };
 
@@ -252,7 +253,7 @@ constexpr long long Id(const char s[]) {
     unsigned char_cnt = 0;
 
     while (s[char_cnt] != '\0') {
-        const int char_val = encode_char(s[char_cnt]);
+        int char_val = encode_char(s[char_cnt]);
         ans += char_val * base_power;
 
         char_cnt++;
@@ -262,6 +263,72 @@ constexpr long long Id(const char s[]) {
     assert(char_cnt != 0);
     return ans;
 }
+
+//https://stackoverflow.com/a/16491172
+template <int kk, int vv>
+struct KeyValue
+{
+    static const int k = kk, v = vv;
+};
+
+template <int dflt, typename...>
+struct ct_map;
+
+template <int dflt>
+struct ct_map<dflt>
+{
+    template<int>
+    struct get
+    {
+        static const int val = dflt;
+    };
+};
+
+template<int dflt, int k, int v, typename... rest>
+struct ct_map<dflt, kv<k, v>, rest...>
+{
+    template<int kk>
+    struct get
+    {
+        static const int val =
+            (kk == k) ?
+            v :
+            ct_map<dflt, rest...>::template get<kk>::val;
+    };
+};
+
+typedef ct_map<42, kv<10, 20>, kv<11, 21>, kv<23, 7>> mymap;
+
+// Loading variables into memory.
+template <typename T>
+struct Lea {
+};
+
+/* SO answer. Need to see if works. How do I find all Id's in Program?
+Also need to assign Lea's to them.
+using Item = std::pair<int, int>;
+constexpr Item map_items[] = {
+    { 6, 7 },
+    { 10, 12 },
+    { 300, 5000 },
+};
+
+constexpr auto map_size = sizeof map_items/sizeof map_items[0];
+
+static constexpr int findValue(int key, int range = map_size) {
+    return
+            (range == 0) ? throw "Key not present":
+            (map_items[range - 1].first == key) ? map_items[range - 1].second:
+            findValue(key, range - 1);
+};
+
+static constexpr int findKey(int value, int range = map_size) {
+    return
+            (range == 0) ? throw "Value not present":
+            (map_items[range - 1].second == value) ? map_items[range - 1].first:
+            findKey(value, range - 1);
+};
+*/
 
 template<size_t N, typename Type>
 struct Computer {
