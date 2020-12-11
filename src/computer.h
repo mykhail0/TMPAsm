@@ -3,6 +3,37 @@
 
 #include <array>
 #include <iostream>
+#include <cassert>
+
+namespace {
+    constexpr unsigned MAX_ID_LEN = 6;
+    // [0..9], [a-z]
+    constexpr int ALLOWED_CHAR_CNT = ('z' - 'a' + 1) + ('9' - '0' + 1);
+
+/*
+    // From https://stackoverflow.com/a/15859077
+    template <int N>
+    constexpr char get_char(char const (&str)[N], int i) {
+        return i >= N ? '\0' : str[i];
+    }
+*/
+
+
+    constexpr char get_char(char const (&str)[MAX_ID_LEN], unsigned i) {
+        return str[i];
+    }
+
+    constexpr int encode_char(const char c) {
+        if ('0' <= c && c <= '9')
+            return static_cast<int>(c) - '0';
+        if ('a' <= c && c <= 'z')
+            return c - 'a' + 10;
+        if ('A' <= c && c <= 'Z')
+            return c - 'A' + 10;
+        throw "Char out of range";
+        //static_assert(false);
+    }
+};
 
 //---------------DEBUG----------------------
 template<size_t N, typename Type>
@@ -227,28 +258,24 @@ struct Num {
     constexpr static int value = N;
 };
 
-// struct Id {
-//     constexpr static int MAX_LENGTH = 6;
-//     constexpr char *name;
-//   private:
-//     constexpr static bool check_id(const char *s) {
-//         bool ans =
-//     }
+// VARIABLES IN PROGRAM
+// test for passing null, for passing pointer
+// string constructor should be constexpr afaik
+constexpr long long Id(const char s[]) {
+    long long ans = 0, base_power = 1;
+    unsigned char_cnt = 0;
 
-//     constexpr Id(const char *s) : name(s) {
-//         static_assert(s != NULL);
-//         static_assert(Id::check_id(s));
-//     }
-// };
+    while (s[char_cnt] != '\0') {
+        const int char_val = encode_char(s[char_cnt]);
+        ans += char_val * base_power;
 
-/*
-template <typename Arg1, typename Arg2>
-struct Add {
-    template <size_t memSize, typename memType>
-    static constexpr void run(std::array<memType, memSize>& mem) {
+        char_cnt++;
+        base_power *= ALLOWED_CHAR_CNT;
+        assert(char_cnt <= MAX_ID_LEN);
     }
-};
-*/
+    assert(char_cnt != 0);
+    return ans;
+}
 
 template<size_t N, typename Type>
 struct Computer {
