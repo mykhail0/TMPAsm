@@ -10,19 +10,6 @@ namespace {
     // [0..9], [a-z]
     constexpr int ALLOWED_CHAR_CNT = ('z' - 'a' + 1) + ('9' - '0' + 1);
 
-/*
-    // From https://stackoverflow.com/a/15859077
-    template <int N>
-    constexpr char get_char(char const (&str)[N], int i) {
-        return i >= N ? '\0' : str[i];
-    }
-*/
-
-
-    constexpr char get_char(char const (&str)[MAX_ID_LEN], unsigned i) {
-        return str[i];
-    }
-
     constexpr int encode_char(const char c) {
         if ('0' <= c && c <= '9')
             return static_cast<int>(c) - '0';
@@ -31,7 +18,6 @@ namespace {
         if ('A' <= c && c <= 'Z')
             return c - 'A' + 10;
         throw "Char out of range";
-        //static_assert(false);
     }
 };
 
