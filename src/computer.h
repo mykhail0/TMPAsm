@@ -61,7 +61,7 @@ namespace {
 
     enum OpType {
         TEST, LABEL, JMP, JZ, JS, DECL, LEA, MEM, NUM, MOV,
-        AND, OR, NOT, ADD, SUB, INC, DEC
+        AND, OR, NOT, ADD, SUB, INC, DEC, CMP
     };
 };
 
@@ -155,7 +155,7 @@ struct D {
     //disabled function TODO now it isnt probably
     //template<size_t memSize, typename memType, typename labels, typename = void>
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute([[maybe_unused]] Env<memType, memSize> &env) {
+    static constexpr void execute(Env<memType, memSize> &env) {
         throw "Value is not Num.";
     }
 
@@ -166,10 +166,10 @@ template<uint64_t id, auto val>
 struct D<id, Num<val>> {
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize> &env) {
-        assert(env.variables_cnt < memSize);
-        // Redeclaration does nothing.
-        if (get_addr<memSize>(id, env.addresses, env.variables_cnt) == env.variables_cnt)
-            env.addresses[env.variables_cnt++] = id;
+            assert(env.variables_cnt < memSize);
+            // Redeclaration does nothing.
+            if (get_addr<memSize>(id, env.addresses, env.variables_cnt) == env.variables_cnt)
+                env.addresses[env.variables_cnt++] = id;
     }
 
     static constexpr OpType type = DECL;
@@ -198,6 +198,17 @@ struct Sub {
         memType pval = Pvalue::template get<memType, memSize>(env);
         *lval -= pval;
         env.update_flags(*lval);
+    }
+};
+
+template<typename Arg1, typename Arg2>
+struct Cmp {
+    static constexpr OpType type = CMP;
+
+    template<size_t memSize, typename memType, typename labels>
+    static constexpr void execute(Env<memType, memSize>& env) {
+        memType val = Arg1::template get<memType, memSize>(env) - Arg2::template get<memType, memSize>(env);
+        env.update_flags(val);
     }
 };
 
@@ -398,39 +409,43 @@ struct Program<Op, Ops...> {
     // recursion call
     template<size_t memSize, typename memType, typename labels>
     static constexpr void run(Env<memType, memSize>& env) {
-        switch (Op::type) {
-            case JMP:
-//                std::cout << "JUMP" << std::endl;
-                Op::template execute<memSize, memType, labels>(env);
-                break;
-            case JZ:
-//                std::cout << "JUMPZ" << std::endl;
-                if (env.ZF) {
+        if (env.vars_loaded) {
+            switch (Op::type) {
+                case JMP:
+    //                std::cout << "JUMP" << std::endl;
                     Op::template execute<memSize, memType, labels>(env);
-                } else {
+                    break;
+                case JZ:
+    //                std::cout << "JUMPZ" << std::endl;
+                    if (env.ZF) {
+                        Op::template execute<memSize, memType, labels>(env);
+                    } else {
+                        Program<Ops...>::template run<memSize, memType, labels>(env);
+                    }
+                    break;
+                case JS:
+    //                std::cout << "JUMPS" << std::endl;
+                    if (env.SF) {
+                        Op::template execute<memSize, memType, labels>(env);
+                    } else {
+                        Program<Ops...>::template run<memSize, memType, labels>(env);
+                    }
+                    break;
+                case DECL:
                     Program<Ops...>::template run<memSize, memType, labels>(env);
-                }
-                break;
-            case JS:
-//                std::cout << "JUMPS" << std::endl;
-                if (env.SF) {
+                    break;
+                default:
                     Op::template execute<memSize, memType, labels>(env);
-                } else {
+                    //printMemory<memSize, memType>(env.memory);
                     Program<Ops...>::template run<memSize, memType, labels>(env);
-                }
-                break;
-            case DECL:
-                if (!env.vars_loaded) {
-                    Op::template execute<memSize, memType, labels>(env);
-                    //printAddr<memSize>(addr);
-                }
-                Program<Ops...>::template run<memSize, memType, labels>(env);
-                break;
-            default:
+                    break;
+            }
+        } else {
+            if (Op::type == DECL) {
                 Op::template execute<memSize, memType, labels>(env);
-                //printMemory<memSize, memType>(env.memory);
-                Program<Ops...>::template run<memSize, memType, labels>(env);
-                break;
+                    //printAddr<memSize, memType>(env.addresses);
+            }
+            Program<Ops...>::template run<memSize, memType, labels>(env);
         }
     }
 };
@@ -440,33 +455,35 @@ struct Program<Op> {
     // base of recursion
     template<size_t memSize, typename memType, typename labels>
     static constexpr void run(Env<memType, memSize>& env) {
-        switch (Op::type) {
-            case JMP:
-//                std::cout << "JMP" << std::endl;
+        if (env.vars_loaded) {
+            switch (Op::type) {
+                case JMP:
+    //                std::cout << "JMP" << std::endl;
+                    Op::template execute<memSize, memType, labels>(env);
+                    break;
+                case JZ:
+    //                std::cout << "JZ" << std::endl;
+                    if (env.ZF) {
+                        Op::template execute<memSize, memType, labels>(env);
+                    }
+                    break;
+                case JS:
+    //                std::cout << "JS" << std::endl;
+                    if (env.SF) {
+                        Op::template execute<memSize, memType, labels>(env);
+                    }
+                    break;
+                case DECL:
+                    break;
+                default:
+                    Op::template execute<memSize, memType, labels>(env);
+                    //printMemory<memSize, memType>(env.memory);
+                    break;
+            }
+        } else {
+            if (Op::type == DECL) {
                 Op::template execute<memSize, memType, labels>(env);
-                break;
-            case JZ:
-//                std::cout << "JZ" << std::endl;
-                if (env.ZF) {
-                    Op::template execute<memSize, memType, labels>(env);
-                }
-                break;
-            case JS:
-//                std::cout << "JS" << std::endl;
-                if (env.SF) {
-                    Op::template execute<memSize, memType, labels>(env);
-                }
-                break;
-            case DECL:
-                if (!env.vars_loaded) {
-                    Op::template execute<memSize, memType, labels>(env);
-                    //printAddr<memSize>(addr);
-                }
-                break;
-            default:
-                Op::template execute<memSize, memType, labels>(env);
-                //printMemory<memSize, memType>(env.memory);
-                break;
+            }
         }
     }
 };
