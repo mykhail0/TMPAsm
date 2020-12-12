@@ -36,7 +36,7 @@ namespace {
 
 //---------------DEBUG----------------------
 template<size_t N, typename Type>
-inline void printMemory(std::array<Type, N> &mem) {
+inline void printMemory(const std::array<Type, N> &mem) {
     std::cout << "-----MEMORY STATE----" << std::endl;
     for (size_t i = 0; i < N; i++) {
         std::cout << mem[i] << std::endl;
@@ -56,16 +56,25 @@ inline void printAddr(std::array<uint64_t, N> &mem) {
 
 //-------------OPERATIONS---------------------------
 
+template<typename memType, size_t N>
+struct Env {
+    std::array<memType, N> memory{};
+    std::array<uint64_t, N> addresses{};
+    bool ZF = false, SF = false;
+    size_t variables_cnt = 0;
+};
+
+
 enum OpType {
-    TEST, LABEL, JMP, JZ, JS, DECL
+    TEST, LABEL, JMP, JZ, JS, DECL, LEA, MEM, NUM, MOV
 };
 
 // Przykładowa operacja
 template<int a, int b>
 struct TestOp {
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(std::array<memType, memSize> &mem, bool &ZF, bool &SF) {
-        mem[a] = b;
+    static constexpr void execute(Env<memType, memSize>& env) {
+        env.memory[a] = b;
     }
 
     template<size_t memSize>
@@ -76,6 +85,7 @@ struct TestOp {
 // VARIABLES IN PROGRAM
 template<auto N>
 struct Num {
+    static constexpr OpType type = NUM;
     static_assert(std::is_integral<decltype(N)>::value, "Integral required.");
     constexpr static auto value = N;
 };
@@ -102,16 +112,69 @@ constexpr uint64_t Id(const char s[]) {
 // Mem would use get() function to access address, passing addr and last_free to it
 template<uint64_t id>
 struct Lea {
+    static constexpr OpType type = LEA;
+    template<typename memType, size_t memSize>
+    constexpr static size_t get(Env<memType, memSize>& env) {
+        return get_addr(id, env.addresses, env.variables_cnt);
+    }
+};
+
+template<typename pvalue>
+struct Mem {
+    static constexpr OpType type = MEM;
+    template<typename memType, size_t memSize>
+    constexpr static memType* get(Env<memType, memSize>& env){
+        std::cout << "MEM VAL: " << env.memory[pvalue::template get<memType,memSize>(env)] << std::endl;
+        return &(env.memory[pvalue::template get<memType,memSize>(env)]);
+    }
+};
+template<auto n>
+struct Mem<Num<n>> {
+    static constexpr OpType type = MEM;
+    template<typename memType, size_t memSize>
+    constexpr static memType* get(Env<memType, memSize>& env){
+        std::cout << "MEM VAL: " << env.memory[n] << std::endl;
+        return &(env.memory[n]);
+    }
+};
+
+//template<uint64_t n, template<uint64_t> typename Num>
+//struct Mem<Num<n>> {
+//    static constexpr OpType type = MEM;
+//    template<typename memType, size_t memSize>
+//    constexpr static memType* get(Env<memType, memSize>& env){
+//        return &(env.memory[n]);
+//    }
+//};
+
+template<typename Lvalue, typename Pvalue>
+struct Mov {
+    static constexpr OpType type = MOV;
+
     template<size_t memSize>
-    constexpr static size_t get(std::array<uint64_t, memSize> &addr, size_t last_free) {
-        return get_addr(id, addr, last_free);
+    static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free){};
+    template<size_t memSize, typename memType, typename labels>
+        static constexpr void execute(Env<memType, memSize>& env) {
+        (*Lvalue::template get<memType, memSize>(env)) = env.memory[Pvalue:: template get<memType,memSize>(env)];
+    }
+};
+template<typename Lvalue, auto n>
+struct Mov<Lvalue, Num<n>> {
+    static constexpr OpType type = MOV;
+
+    template<size_t memSize>
+    static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free) {};
+    template<size_t memSize, typename memType, typename labels>
+    static constexpr void execute(Env<memType, memSize>& env) {
+        (*Lvalue::template get<memType, memSize>(env)) = env.memory[n];
     }
 };
 
 template<uint64_t id, typename T>
 struct D {
-    template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(std::array<memType, memSize> &mem, bool &ZF, bool &SF);
+    //disabled function
+    template<size_t memSize, typename memType, typename labels, typename = void>
+    static constexpr void execute(Env<memType, memSize>& env);
 
     template<size_t memSize>
     static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free) {
@@ -123,7 +186,7 @@ struct D {
 template<uint64_t id, auto val>
 struct D<id, Num<val>> {
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(std::array<memType, memSize> &mem, bool &ZF, bool &SF) {}
+    static constexpr void execute(Env<memType, memSize>& env) {}
 
     template<size_t memSize>
     static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free) {
@@ -146,7 +209,7 @@ template<uint64_t Id>
 struct Label {
 
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(std::array<memType, memSize> &mem, bool &ZF, bool &SF) {}
+    static constexpr void execute(Env<memType, memSize>& env) {}
 
     template<size_t memSize>
     static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free) {}
@@ -158,12 +221,12 @@ template<uint64_t Id>
 struct Jmp {
 
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(std::array<memType, memSize> &mem, bool &ZF, bool &SF) {
-        labels::template find_and_run<Id,memSize, memType, labels>(mem, ZF, SF);
+    static constexpr void execute(Env<memType, memSize>& env) {
+        labels::template find_and_run<Id,memSize, memType, labels>(env);
     }
 
     template<size_t memSize>
-    static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free) {}
+    static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free){};
     static constexpr OpType type = JMP;
     static constexpr uint64_t id = Id;
 };
@@ -171,12 +234,12 @@ struct Jmp {
 template<uint64_t Id>
 struct Jz {
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(std::array<memType, memSize> &mem, bool &ZF, bool &SF) {
-        labels::template find_and_run<Id,memSize, memType, labels>(mem, ZF, SF);
+    static constexpr void execute(Env<memType, memSize>& env) {
+        labels::template find_and_run<Id,memSize, memType, labels>(env);
     }
 
     template<size_t memSize>
-    static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free) {}
+    static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free){};
     static constexpr OpType type = JZ;
     static constexpr uint64_t id = Id;
 };
@@ -184,12 +247,12 @@ struct Jz {
 template<uint64_t Id>
 struct Js {
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(std::array<memType, memSize> &mem, bool &ZF, bool &SF) {
-        labels::template find_and_run<Id,memSize, memType, labels>(mem, ZF, SF);
+    static constexpr void execute(Env<memType, memSize>& env) {
+        labels::template find_and_run<Id,memSize, memType, labels>(env);
     }
 
-    template<size_t memSize>
-    static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free) {}
+    template<size_t memSize, typename = void>
+    static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free){};
     static constexpr OpType type = JS;
     static constexpr uint64_t id = Id;
 };
@@ -236,15 +299,13 @@ template<template<typename...> class Program, typename Label,
         typename... Labels>
 struct LabelList<Program<>, Label, Labels...> {
     template<uint64_t id, size_t memSize, typename memType, typename labels>
-    static constexpr void find_and_run(
-                                       std::array<memType, memSize> &mem,
-                                       bool &ZF, bool &SF) {
+    static constexpr void find_and_run(Env<memType,memSize>& env) {
         // std::cout << Label::label::type << std::endl;
         if (Label::label::id == id) {
-            Label::program::template run<memSize, memType, labels>(mem, ZF, SF);
+            Label::program::template run<memSize, memType, labels>(env);
         } else {
             LabelList<Program<>, Labels...>::template
-            find_and_run<id, memSize, memType, labels>(mem, ZF, SF);
+            find_and_run<id, memSize, memType, labels>(env);
         }
     }
 };
@@ -253,11 +314,9 @@ struct LabelList<Program<>, Label, Labels...> {
 template<template<typename...> class Program, typename Label>
 struct LabelList<Program<>, Label> {
     template<uint64_t id, size_t memSize, typename memType, typename labels>
-    static constexpr void find_and_run(
-                                       std::array<memType, memSize> &mem,
-                                       bool &ZF, bool &SF) {
+    static constexpr void find_and_run(Env<memType, memSize>& env) {
         static_assert(Label::label::id == id, "Label doesn't exist");
-        Label::program::template run<memSize, memType, labels>(mem, ZF, SF);
+        Label::program::template run<memSize, memType, labels>(env);
     }
 };
 
@@ -275,32 +334,32 @@ template<typename Op, typename... Ops>
 struct Program<Op, Ops...> {
     // recursion call
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void run(std::array<memType, memSize> &mem, bool &ZF, bool &SF) {
+    static constexpr void run(Env<memType, memSize>& env) {
         switch (Op::type) {
             case JMP:
 //                std::cout << "JUMP" << std::endl;
-                Op::template execute<memSize, memType, labels>(mem, ZF, SF);
+                Op::template execute<memSize, memType, labels>(env);
                 break;
             case JZ:
 //                std::cout << "JUMPZ" << std::endl;
-                if (ZF) {
-                    Op::template execute<memSize, memType, labels>(mem, ZF, SF);
+                if (env.ZF) {
+                    Op::template execute<memSize, memType, labels>(env);
                 } else {
-                    Program<Ops...>::template run<memSize, memType, labels>(mem, ZF, SF);
+                    Program<Ops...>::template run<memSize, memType, labels>(env);
                 }
                 break;
             case JS:
 //                std::cout << "JUMPS" << std::endl;
-                if (SF) {
-                    Op::template execute<memSize, memType, labels>(mem, ZF, SF);
+                if (env.SF) {
+                    Op::template execute<memSize, memType, labels>(env);
                 } else {
-                    Program<Ops...>::template run<memSize, memType, labels>(mem, ZF, SF);
+                    Program<Ops...>::template run<memSize, memType, labels>(env);
                 }
                 break;
             default:
-                Op::template execute<memSize, memType, labels>(mem, ZF, SF);
-//                printMemory<memSize, memType>(mem);
-                Program<Ops...>::template run<memSize, memType, labels>(mem, ZF, SF);
+                Op::template execute<memSize, memType, labels>(env);
+                printMemory<memSize, memType>(env.memory);
+                Program<Ops...>::template run<memSize, memType, labels>(env);
                 break;
         }
     }
@@ -320,27 +379,27 @@ template<typename Op>
 struct Program<Op> {
     // base of recursion
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void run(std::array<memType, memSize> &mem, bool &ZF, bool &SF) {
+    static constexpr void run(Env<memType, memSize>& env) {
         switch (Op::type) {
             case JMP:
 //                std::cout << "JMP" << std::endl;
-                Op::template execute<memSize, memType, labels>(mem, ZF, SF);
+                Op::template execute<memSize, memType, labels>(env);
                 break;
             case JZ:
 //                std::cout << "JZ" << std::endl;
-                if (ZF) {
-                    Op::template execute<memSize, memType, labels>(mem, ZF, SF);
+                if (env.ZF) {
+                    Op::template execute<memSize, memType, labels>(env);
                 }
                 break;
             case JS:
 //                std::cout << "JS" << std::endl;
-                if (SF) {
-                    Op::template execute<memSize, memType, labels>(mem, ZF, SF);
+                if (env.SF) {
+                    Op::template execute<memSize, memType, labels>(env);
                 }
                 break;
             default:
-                Op::template execute<memSize, memType, labels>(mem, ZF, SF);
-//                printMemory<memSize, memType>(mem);
+                Op::template execute<memSize, memType, labels>(env);
+                printMemory<memSize, memType>(env.memory);
                 break;
         }
     }
@@ -360,19 +419,16 @@ struct Computer {
     static constexpr std::array<Type, N> boot() {
         static_assert(std::is_integral<Type>::value, "Computer requires integral types.");
 
-        std::array<Type, N> memory{};
-        std::array<uint64_t, N> addresses{};
-        bool ZF = false, SF = false;
-        size_t variables_cnt = 0;
+        Env<Type,N> env;
 
-        T::template load_variables<N>(addresses, variables_cnt);
+        T::template load_variables<N>(env.addresses, env.variables_cnt);
 
         using labels = typename LabelList<T>::result;
         // std::array<uint64_t, n_labels> labels;
         // std::cout << "n_labels: " << n_labels << std::endl;
 
-        T::template run<N, Type, labels>(memory, ZF, SF);
-        return memory;
+        T::template run<N, Type, labels>(env);
+        return env.memory;
     }
 };
 
