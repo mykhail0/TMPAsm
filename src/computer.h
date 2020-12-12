@@ -9,8 +9,11 @@
 
 namespace {
     constexpr unsigned MAX_ID_LEN = 6;
+
     // [0..9], [a-z]
     constexpr int ALLOWED_CHAR_CNT = ('z' - 'a' + 1) + ('9' - '0' + 1);
+
+    // Id helper function, encodes a single character.
     constexpr int encode_char(char c) {
         if ('0' <= c && c <= '9')
             return static_cast<int>(c) - '0';
@@ -21,6 +24,7 @@ namespace {
         throw "Character out of range";
     }
 
+    // Lea helper function, gets variable address which Id is id.
     template<size_t memSize>
     constexpr size_t get_addr(uint64_t id, std::array<uint64_t, memSize> &addr, size_t sz) {
         for (size_t i = 0; i < sz; ++i) {
@@ -30,14 +34,28 @@ namespace {
         return sz;
     }
 
+    // Describes Computer state.
     template<typename memType, size_t N>
     struct Env {
         std::array<memType, N> memory{};
         std::array<uint64_t, N> addresses{};
         bool ZF = false, SF = false;
         size_t variables_cnt = 0;
-    };
 
+        constexpr void update_flags(memType val) {
+            if (val == 0) {
+                ZF = true;
+            } else {
+                ZF = false;
+            }
+
+            if (val < 0) {
+                SF = true;
+            } else {
+                SF = false;
+            }
+        }
+    };
 
     enum OpType {
         TEST, LABEL, JMP, JZ, JS, DECL, LEA, MEM, NUM, MOV,
@@ -110,7 +128,7 @@ struct Mem {
 
     template<typename memType, size_t memSize>
     constexpr static memType* get_pointer(Env<memType, memSize>& env){
-        std::cout << "MEM VAL: " << env.memory[pvalue::template get<memType, memSize>(env)] << std::endl;
+        //std::cout << "MEM VAL: " << env.memory[pvalue::template get<memType, memSize>(env)] << std::endl;
         return &(env.memory[pvalue::template get<memType, memSize>(env)]);
     }
 
@@ -119,15 +137,6 @@ struct Mem {
         return env.memory[pvalue::template get<memType, memSize>(env)];
     }
 };
-
-//template<uint64_t n, template<uint64_t> typename Num>
-//struct Mem<Num<n>> {
-//    static constexpr OpType type = MEM;
-//    template<typename memType, size_t memSize>
-//    constexpr static memType* get(Env<memType, memSize>& env){
-//        return &(env.memory[n]);
-//    }
-//};
 
 template<typename Lvalue, typename Pvalue>
 struct Mov {
@@ -182,18 +191,7 @@ struct Add {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
         memType pval = Pvalue::template get<memType, memSize>(env);
         *lval += pval;
-
-        if (*lval == 0) {
-            env.ZF = true;
-        } else {
-            env.ZF = false;
-        }
-
-        if (*lval < 0) {
-            env.SF = true;
-        } else {
-            env.SF = false;
-        }
+        env.update_flags(*lval);
     }
 };
 
@@ -209,18 +207,7 @@ struct Sub {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
         memType pval = Pvalue::template get<memType, memSize>(env);
         *lval -= pval;
-
-        if (*lval == 0) {
-            env.ZF = true;
-        } else {
-            env.ZF = false;
-        }
-
-        if (*lval < 0) {
-            env.SF = true;
-        } else {
-            env.SF = false;
-        }
+        env.update_flags(*lval);
     }
 };
 
@@ -235,18 +222,7 @@ struct Inc {
     static constexpr void execute(Env<memType, memSize>& env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
         ++(*lval);
-
-        if (*lval == 0) {
-            env.ZF = true;
-        } else {
-            env.ZF = false;
-        }
-
-        if (*lval < 0) {
-            env.SF = true;
-        } else {
-            env.SF = false;
-        }
+        env.update_flags(*lval);
     }
 };
 
@@ -261,18 +237,7 @@ struct Dec {
     static constexpr void execute(Env<memType, memSize>& env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
         --(*lval);
-
-        if (*lval == 0) {
-            env.ZF = true;
-        } else {
-            env.ZF = false;
-        }
-
-        if (*lval < 0) {
-            env.SF = true;
-        } else {
-            env.SF = false;
-        }
+        env.update_flags(*lval);
     }
 };
 
@@ -284,8 +249,7 @@ struct And {
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize>& env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
-        memType pval = Pvalue::template get<memType, memSize>(env);
-        *lval &= pval;
+        *lval &= Pvalue::template get<memType, memSize>(env);
         if (*lval == 0) {
             env.ZF = true;
         } else {
@@ -302,8 +266,7 @@ struct Or {
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize>& env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
-        memType pval = Pvalue::template get<memType, memSize>(env);
-        *lval |= pval;
+        *lval |= Pvalue::template get<memType, memSize>(env);
         if (*lval == 0) {
             env.ZF = true;
         } else {
@@ -488,7 +451,7 @@ struct Program<Op, Ops...> {
                 break;
             default:
                 Op::template execute<memSize, memType, labels>(env);
-                printMemory<memSize, memType>(env.memory);
+                //printMemory<memSize, memType>(env.memory);
                 Program<Ops...>::template run<memSize, memType, labels>(env);
                 break;
         }
@@ -529,7 +492,7 @@ struct Program<Op> {
                 break;
             default:
                 Op::template execute<memSize, memType, labels>(env);
-                printMemory<memSize, memType>(env.memory);
+                //printMemory<memSize, memType>(env.memory);
                 break;
         }
     }
