@@ -30,8 +30,19 @@ namespace {
         return sz;
     }
 
-    //struct State {
-    //};
+    template<typename memType, size_t N>
+    struct Env {
+        std::array<memType, N> memory{};
+        std::array<uint64_t, N> addresses{};
+        bool ZF = false, SF = false;
+        size_t variables_cnt = 0;
+    };
+
+
+    enum OpType {
+        TEST, LABEL, JMP, JZ, JS, DECL, LEA, MEM, NUM, MOV,
+        AND, OR, NOT
+    };
 };
 
 //---------------DEBUG----------------------
@@ -55,21 +66,6 @@ inline void printAddr(std::array<uint64_t, N> &mem) {
 
 
 //-------------OPERATIONS---------------------------
-
-template<typename memType, size_t N>
-struct Env {
-    std::array<memType, N> memory{};
-    std::array<uint64_t, N> addresses{};
-    bool ZF = false, SF = false;
-    size_t variables_cnt = 0;
-};
-
-
-enum OpType {
-    TEST, LABEL, JMP, JZ, JS, DECL, LEA, MEM, NUM, MOV,
-    AND, OR, NOT
-};
-
 // Przykładowa operacja
 template<int a, int b>
 struct TestOp {
@@ -79,7 +75,7 @@ struct TestOp {
     }
 
     template<size_t memSize>
-    static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free) {}
+    static constexpr void load_variable([[maybe_unused]] std::array<uint64_t, memSize> &addr, [[maybe_unused]] size_t &last_free) {}
     static constexpr OpType type = TEST;
 };
 
@@ -94,6 +90,7 @@ struct Num {
     }
 };
 
+// Encodes string for id as an integer.
 constexpr uint64_t Id(const char s[]) {
     uint64_t ans = 0, base_power = 1;
     unsigned char_cnt = 0;
@@ -111,10 +108,7 @@ constexpr uint64_t Id(const char s[]) {
 }
 
 
-// DOES NESTING WORK?
-// Loading variables into memory.
-// TODO weak solution but idk
-// Mem would use get() function to access address, passing addr and last_free to it
+// Gets address of id Id.
 template<uint64_t id>
 struct Lea {
     static constexpr OpType type = LEA;
@@ -127,10 +121,16 @@ struct Lea {
 template<typename pvalue>
 struct Mem {
     static constexpr OpType type = MEM;
+
     template<typename memType, size_t memSize>
-    constexpr static memType* get(Env<memType, memSize>& env){
-        std::cout << "MEM VAL: " << env.memory[pvalue::template get<memType,memSize>(env)] << std::endl;
-        return &(env.memory[pvalue::template get<memType,memSize>(env)]);
+    constexpr static memType* get_pointer(Env<memType, memSize>& env){
+        std::cout << "MEM VAL: " << env.memory[pvalue::template get<memType, memSize>(env)] << std::endl;
+        return &(env.memory[pvalue::template get<memType, memSize>(env)]);
+    }
+
+    template<typename memType, size_t memSize>
+    constexpr static memType get(Env<memType, memSize> &env) {
+        return env.memory[pvalue::template get<memType, memSize>(env)];
     }
 };
 
@@ -148,26 +148,12 @@ struct Mov {
     static constexpr OpType type = MOV;
 
     template<size_t memSize>
-    static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free){};
+    static constexpr void load_variable([[maybe_unused]] std::array<uint64_t, memSize> &addr, [[maybe_unused]] size_t &last_free) {};
+
     template<size_t memSize, typename memType, typename labels>
-        static constexpr void execute(Env<memType, memSize>& env) {
-        (*Lvalue::template get<memType, memSize>(env)) = env.memory[Pvalue:: template get<memType,memSize>(env)];
+    static constexpr void execute(Env<memType, memSize>& env) {
+        (*Lvalue::template get_pointer<memType, memSize>(env)) = env.memory[Pvalue:: template get<memType,memSize>(env)];
     }
-};
-
-template<typename T>
-struct Mem {};
-
-template<>
-struct Mem<Lea<id>> {
-};
-
-template<>
-struct Mem<Num<nr>> {
-};
-
-template<>
-struct Mem<Mem<nr>> {
 };
 
 template<uint64_t id, typename T>
@@ -177,7 +163,7 @@ struct D {
     static constexpr void execute(Env<memType, memSize>& env);
 
     template<size_t memSize>
-    static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free) {
+    static constexpr void load_variable([[maybe_unused]] std::array<uint64_t, memSize> &addr, [[maybe_unused]] size_t &last_free) {
         throw "Value is not Numeric.";
     }
     static constexpr OpType type = DECL;
@@ -186,14 +172,14 @@ struct D {
 template<uint64_t id, auto val>
 struct D<id, Num<val>> {
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(Env<memType, memSize>& env) {}
+    static constexpr void execute([[maybe_unused]] Env<memType, memSize>& env) {}
 
     template<size_t memSize>
     static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free) {
         assert(last_free < memSize);
         // two times the same variable causes compilation error
-        assert(get_addr<memSize>(id, addr, last_free) == last_free);
-        addr[last_free++] = id;
+        if (get_addr<memSize>(id, addr, last_free) != last_free)
+            addr[last_free++] = id;
     }
     static constexpr OpType type = DECL;
 };
@@ -205,43 +191,10 @@ struct And {
     static constexpr void load_variable([[maybe_unused]] std::array<uint64_t, memSize> &addr,[[maybe_unused]] size_t &last_free) {};
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize>& env) {
-         memType* lval = Lvalue::template get<memType, memSize>(env);
-         memType pval = Pvalue:: template get<memType,memSize>(env);
-        *lval = (*lval) & pval;
-        if(*lval == 0) {
-            env.ZF = 1;
-        } else {
-            env.ZF = 0;
-        }
-    }
-};
-template<typename Lvalue, typename Pvalue>
-struct Or {
-    static constexpr OpType type = OR;
-    template<size_t memSize>
-    static constexpr void load_variable([[maybe_unused]] std::array<uint64_t, memSize> &addr,[[maybe_unused]] size_t &last_free) {};
-    template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(Env<memType, memSize>& env) {
-         memType* lval = Lvalue::template get<memType, memSize>(env);
-         memType pval = Pvalue:: template get<memType,memSize>(env);
-        *lval = (*lval) | pval;
-        if(*lval == 0) {
-            env.ZF = 1;
-        } else {
-            env.ZF = 0;
-        }
-    }
-};
-template<typename Lvalue>
-struct Not {
-    static constexpr OpType type = OR;
-    template<size_t memSize>
-    static constexpr void load_variable([[maybe_unused]] std::array<uint64_t, memSize> &addr,[[maybe_unused]] size_t &last_free) {};
-    template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(Env<memType, memSize>& env) {
-        memType* lval = Lvalue::template get<memType, memSize>(env);
-        *lval = ~(*lval);
-        if(*lval == 0) {
+        memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
+        memType pval = Pvalue::template get<memType, memSize>(env);
+        *lval &= pval;
+        if (*lval == 0) {
             env.ZF = 1;
         } else {
             env.ZF = 0;
@@ -249,6 +202,40 @@ struct Not {
     }
 };
 
+template<typename Lvalue, typename Pvalue>
+struct Or {
+    static constexpr OpType type = OR;
+    template<size_t memSize>
+    static constexpr void load_variable([[maybe_unused]] std::array<uint64_t, memSize> &addr,[[maybe_unused]] size_t &last_free) {};
+    template<size_t memSize, typename memType, typename labels>
+    static constexpr void execute(Env<memType, memSize>& env) {
+        memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
+        memType pval = Pvalue::template get<memType, memSize>(env);
+        *lval |= pval;
+        if (*lval == 0) {
+            env.ZF = 1;
+        } else {
+            env.ZF = 0;
+        }
+    }
+};
+
+template<typename Lvalue>
+struct Not {
+    static constexpr OpType type = OR;
+    template<size_t memSize>
+    static constexpr void load_variable([[maybe_unused]] std::array<uint64_t, memSize> &addr,[[maybe_unused]] size_t &last_free) {};
+    template<size_t memSize, typename memType, typename labels>
+    static constexpr void execute(Env<memType, memSize>& env) {
+        memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
+        *lval = ~(*lval);
+        if (*lval == 0) {
+            env.ZF = 1;
+        } else {
+            env.ZF = 0;
+        }
+    }
+};
 
 template<typename Label, typename Program>
 struct LabelHolder {
@@ -260,10 +247,10 @@ template<uint64_t Id>
 struct Label {
 
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(Env<memType, memSize>& env) {}
+    static constexpr void execute([[maybe_unused]] Env<memType, memSize>& env) {}
 
     template<size_t memSize>
-    static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free) {}
+    static constexpr void load_variable([[maybe_unused]] std::array<uint64_t, memSize> &addr, [[maybe_unused]] size_t &last_free) {}
     static constexpr OpType type = LABEL;
     static constexpr uint64_t id = Id;
 };
@@ -277,7 +264,7 @@ struct Jmp {
     }
 
     template<size_t memSize>
-    static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free){};
+    static constexpr void load_variable([[maybe_unused]] std::array<uint64_t, memSize> &addr, [[maybe_unused]] size_t &last_free){};
     static constexpr OpType type = JMP;
     static constexpr uint64_t id = Id;
 };
@@ -290,7 +277,7 @@ struct Jz {
     }
 
     template<size_t memSize>
-    static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free){};
+    static constexpr void load_variable([[maybe_unused]] std::array<uint64_t, memSize> &addr, [[maybe_unused]] size_t &last_free){};
     static constexpr OpType type = JZ;
     static constexpr uint64_t id = Id;
 };
@@ -303,7 +290,7 @@ struct Js {
     }
 
     template<size_t memSize, typename = void>
-    static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free){};
+    static constexpr void load_variable([[maybe_unused]] std::array<uint64_t, memSize> &addr, [[maybe_unused]] size_t &last_free){};
     static constexpr OpType type = JS;
     static constexpr uint64_t id = Id;
 };
