@@ -97,6 +97,7 @@ constexpr uint64_t Id(const char s[]) {
 }
 
 
+// DOES NESTING WORK?
 // Loading variables into memory.
 // TODO weak solution but idk
 // Mem would use get() function to access address, passing addr and last_free to it
@@ -106,6 +107,21 @@ struct Lea {
     constexpr static size_t get(std::array<uint64_t, memSize> &addr, size_t last_free) {
         return get_addr(id, addr, last_free);
     }
+};
+
+template<typename T>
+struct Mem {};
+
+template<>
+struct Mem<Lea<id>> {
+};
+
+template<>
+struct Mem<Num<nr>> {
+};
+
+template<>
+struct Mem<Mem<nr>> {
 };
 
 template<uint64_t id, typename T>
