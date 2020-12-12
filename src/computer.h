@@ -326,6 +326,14 @@ struct LabelList<Program<Op>, Labels...> {
     using result = LabelList<Program<>, Labels...>;
 };
 
+//empty program
+template<template<typename...> class Program>
+struct LabelList<Program<>> {
+    template<uint64_t id, size_t memSize, typename memType, typename labels>
+    static constexpr void find_and_run(Env<memType, memSize>&) {}
+    using result = LabelList<Program<>>;
+};
+
 // Handle Jump operations
 
 // recursion
