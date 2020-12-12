@@ -5,6 +5,7 @@ int main() {
             Computer<10, int>::boot<Program<
 //Computer<10, int>::boot<Program<
             D<Id("ABC"), Num<2137>>,
+            D<Id("X"), Num<321>>,
             //D<Id("ABC"), Num<2137>>,
             //D<Id("ABC"), Num<2137>>,
             TestOp<1, 2137>,
@@ -16,6 +17,8 @@ int main() {
             TestOp<0, 2>,
             Jmp<Id("2")>,
             Label<Id("2")>,
+            Not<Mem<Lea<Id("ABC")>>>,
+            And<Mem<Lea<Id("X")>>,Num<2>>,
             TestOp<8, 2137>>>();
 //    printMemory<10,int>(x);
     return 0;
