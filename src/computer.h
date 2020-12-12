@@ -152,8 +152,6 @@ struct Mov {
 
 template<uint64_t id, typename T>
 struct D {
-    //disabled function TODO now it isnt probably
-    //template<size_t memSize, typename memType, typename labels, typename = void>
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize> &env) {
         throw "Value is not Num.";
@@ -168,8 +166,12 @@ struct D<id, Num<val>> {
     static constexpr void execute(Env<memType, memSize> &env) {
             assert(env.variables_cnt < memSize);
             // Redeclaration does nothing.
-            if (get_addr<memSize>(id, env.addresses, env.variables_cnt) == env.variables_cnt)
-                env.addresses[env.variables_cnt++] = id;
+            if (get_addr<memSize>(id, env.addresses, env.variables_cnt) == env.variables_cnt) {
+                env.addresses[env.variables_cnt] = id;
+                env.memory[env.variables_cnt++] = val;
+            }
+            printMemory(env.memory);
+            printAddr(env.addresses);
     }
 
     static constexpr OpType type = DECL;
@@ -401,7 +403,7 @@ struct LabelList<Program<>, Label> {
 template<typename... Ops>
 struct Program {
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void run(std::array<memType, memSize> &mem, bool &ZF, bool &SF);
+    static constexpr void run(Env<memType, memSize>& env);
 };
 
 template<typename Op, typename... Ops>

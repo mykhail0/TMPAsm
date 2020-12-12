@@ -1,7 +1,7 @@
 #include "computer.h"
 
 int main() {
-    constexpr std::array<int,10> x =
+    //constexpr std::array<int,10> x =
             Computer<10, int>::boot<Program<
             D<Id("ABC"), Num<2137>>,
             D<Id("X"), Num<321>>,
