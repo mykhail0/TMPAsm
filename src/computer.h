@@ -142,11 +142,11 @@ struct D<id, Num<val>> {
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize> &env) {
         assert(env.variables_cnt < memSize);
-        // Redeclaration does nothing.
+        // Redeclaration does not change addresses.
         if (get_addr<memSize>(id, env.addresses, env.variables_cnt) == env.variables_cnt) {
             env.addresses[env.variables_cnt] = id;
-            env.memory[env.variables_cnt++] = val;
         }
+        env.memory[env.variables_cnt++] = val;
     }
 };
 
