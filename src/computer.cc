@@ -2,6 +2,10 @@
 
 int main() {
     constexpr std::array<int,10> x = Computer<10, int>::boot<Program<
+//Computer<10, int>::boot<Program<
+            D<Id("ABC"), Num<2137>>,
+            //D<Id("ABC"), Num<2137>>,
+            //D<Id("ABC"), Num<2137>>,
             TestOp<0, 3>,
             TestOp<0, 2>,
             Jz<Id("2")>,
