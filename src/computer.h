@@ -146,7 +146,7 @@ struct Mov {
 
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize>& env) {
-        (*Lvalue::template get_pointer<memType, memSize>(env)) = env.memory[Pvalue:: template get<memType,memSize>(env)];
+        (*Lvalue::template get_pointer<memType, memSize>(env)) = Pvalue:: template get<memType,memSize>(env);
     }
 };
 
@@ -479,7 +479,7 @@ struct Program<Op> {
                     break;
                 default:
                     Op::template execute<memSize, memType, labels>(env);
-                    //printMemory<memSize, memType>(env.memory);
+//                    printMemory<memSize, memType>(env.memory);
                     break;
             }
         } else {
