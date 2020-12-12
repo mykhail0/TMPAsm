@@ -73,15 +73,6 @@ inline void printAddr(std::array<uint64_t, N> &mem) {
 
 //-------------OPERATIONS---------------------------
 // VARIABLES IN PROGRAM
-template<auto N>
-struct Num {
-    static_assert(std::is_integral<decltype(N)>::value, "Integral required.");
-    template<typename memType, size_t memSize>
-    constexpr static auto get([[maybe_unused]] Env<memType, memSize>& env) {
-       return N;
-    }
-};
-
 // Encodes string for id as an integer.
 constexpr uint64_t Id(const char s[]) {
     uint64_t ans = 0, base_power = 1;
@@ -99,6 +90,15 @@ constexpr uint64_t Id(const char s[]) {
     return ans;
 }
 
+template<auto N>
+struct Num {
+    static_assert(std::is_integral<decltype(N)>::value, "Integral required.");
+    template<typename memType, size_t memSize>
+    constexpr static auto get([[maybe_unused]] Env<memType, memSize>& env) {
+       return N;
+    }
+};
+
 // Gets address of id Id.
 template<uint64_t id>
 struct Lea {
@@ -110,7 +110,6 @@ struct Lea {
 
 template<typename pvalue>
 struct Mem {
-
     template<typename memType, size_t memSize>
     constexpr static memType* get_pointer(Env<memType, memSize>& env){
         //std::cout << "MEM VAL: " << env.memory[pvalue::template get<memType, memSize>(env)] << std::endl;
@@ -123,43 +122,37 @@ struct Mem {
     }
 };
 
-template<typename Lvalue, typename Pvalue>
-struct Mov {
-
-    template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(Env<memType, memSize>& env) {
-        (*Lvalue::template get_pointer<memType, memSize>(env)) = Pvalue:: template get<memType,memSize>(env);
-    }
-};
-
 template<uint64_t id, typename T>
 struct D {
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute([[maybe_unused]] Env<memType, memSize> &env) {
         throw "Value is not Num.";
     }
-
 };
 
 template<uint64_t id, auto val>
 struct D<id, Num<val>> {
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize> &env) {
-            assert(env.variables_cnt < memSize);
-            // Redeclaration does nothing.
-            if (get_addr<memSize>(id, env.addresses, env.variables_cnt) == env.variables_cnt) {
-                env.addresses[env.variables_cnt] = id;
-                env.memory[env.variables_cnt++] = val;
-            }
-            //printMemory(env.memory);
-            //printAddr(env.addresses);
+        assert(env.variables_cnt < memSize);
+        // Redeclaration does nothing.
+        if (get_addr<memSize>(id, env.addresses, env.variables_cnt) == env.variables_cnt) {
+            env.addresses[env.variables_cnt] = id;
+            env.memory[env.variables_cnt++] = val;
+        }
     }
+};
 
+template<typename Lvalue, typename Pvalue>
+struct Mov {
+    template<size_t memSize, typename memType, typename labels>
+    static constexpr void execute(Env<memType, memSize>& env) {
+        (*Lvalue::template get_pointer<memType, memSize>(env)) = Pvalue:: template get<memType,memSize>(env);
+    }
 };
 
 template<typename Lvalue, typename Pvalue>
 struct Add {
-
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize>& env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
@@ -171,7 +164,6 @@ struct Add {
 
 template<typename Lvalue, typename Pvalue>
 struct Sub {
-
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize>& env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
@@ -183,7 +175,6 @@ struct Sub {
 
 template<typename Arg1, typename Arg2>
 struct Cmp {
-
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize>& env) {
         memType val = Arg1::template get<memType, memSize>(env) - Arg2::template get<memType, memSize>(env);
@@ -193,7 +184,6 @@ struct Cmp {
 
 template<typename Lvalue>
 struct Inc {
-
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize>& env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
@@ -204,7 +194,6 @@ struct Inc {
 
 template<typename Lvalue>
 struct Dec {
-
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize>& env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
@@ -215,7 +204,6 @@ struct Dec {
 
 template<typename Lvalue, typename Pvalue>
 struct And {
-
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize>& env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
@@ -226,7 +214,6 @@ struct And {
 
 template<typename Lvalue, typename Pvalue>
 struct Or {
-
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize>& env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
@@ -237,7 +224,6 @@ struct Or {
 
 template<typename Lvalue>
 struct Not {
-
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize>& env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
@@ -246,6 +232,7 @@ struct Not {
     }
 };
 
+// LABELS
 template<typename Label, typename Program>
 struct LabelHolder {
     using program = Program;
@@ -261,9 +248,9 @@ struct Label {
     static constexpr uint64_t id = Id;
 };
 
+// JUMPS
 template<uint64_t Id>
 struct Jmp {
-
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize>& env) {
         labels::template find_and_run<Id,memSize, memType, labels>(env);
@@ -422,54 +409,6 @@ struct Program<D<id, Num<val>>, Ops...> {
     }
 };
 
-/*
-template<typename Op, typename... Ops>
-struct Program<Op, Ops...> {
-    // recursion call
-    template<size_t memSize, typename memType, typename labels>
-    static constexpr void run(Env<memType, memSize>& env) {
-        if (env.vars_loaded) {
-            switch (Op::type) {
-                case JMP:
-    //                std::cout << "JUMP" << std::endl;
-                    Op::template execute<memSize, memType, labels>(env);
-                    break;
-                case JZ:
-    //                std::cout << "JUMPZ" << std::endl;
-                    if (env.ZF) {
-                        Op::template execute<memSize, memType, labels>(env);
-                    } else {
-                        Program<Ops...>::template run<memSize, memType, labels>(env);
-                    }
-                    break;
-                case JS:
-    //                std::cout << "JUMPS" << std::endl;
-                    if (env.SF) {
-                        Op::template execute<memSize, memType, labels>(env);
-                    } else {
-                        Program<Ops...>::template run<memSize, memType, labels>(env);
-                    }
-                    break;
-                case DECL:
-                    Program<Ops...>::template run<memSize, memType, labels>(env);
-                    break;
-                default:
-                    Op::template execute<memSize, memType, labels>(env);
-                    //printMemory<memSize, memType>(env.memory);
-                    Program<Ops...>::template run<memSize, memType, labels>(env);
-                    break;
-            }
-        } else {
-            if (Op::type == DECL) {
-                Op::template execute<memSize, memType, labels>(env);
-                    //printAddr<memSize, memType>(env.addresses);
-            }
-            Program<Ops...>::template run<memSize, memType, labels>(env);
-        }
-    }
-};
-*/
-
 template<uint64_t id>
 struct Program<Jz<id>> {
     template<size_t memSize, typename memType, typename labels>
@@ -526,10 +465,7 @@ struct Computer {
         Env<Type,N> env;
 
         using labels = typename LabelList<T>::result;
-        // std::array<uint64_t, n_labels> labels;
-        // std::cout << "n_labels: " << n_labels << std::endl;
 
-        //T::template load_variables<N>(env.addresses, env.variables_cnt);
         T::template run<N, Type, labels>(env);
         env.vars_loaded = true;
 
