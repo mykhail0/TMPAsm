@@ -489,6 +489,12 @@ struct Program<Op> {
         }
     }
 };
+//empty program
+template<>
+struct Program<> {
+    template<size_t memSize, typename memType, typename labels>
+    static constexpr void run([[maybe_unused]] Env<memType, memSize>& env) {}
+};
 
 template<size_t N, typename Type>
 struct Computer {
