@@ -88,11 +88,6 @@ struct Num {
     static constexpr OpType type = NUM;
     static_assert(std::is_integral<decltype(N)>::value, "Integral required.");
     constexpr static auto value = N;
-    template<typename memType, size_t memSize>
-    constexpr static auto get(Env<memType, memSize>& env){
-        std::cout << "NUM VAL: " << value << std::endl;
-        return value;
-    }
 };
 
 constexpr uint64_t Id(const char s[]) {
@@ -133,6 +128,15 @@ struct Mem {
         return &(env.memory[pvalue::template get<memType,memSize>(env)]);
     }
 };
+template<auto n>
+struct Mem<Num<n>> {
+    static constexpr OpType type = MEM;
+    template<typename memType, size_t memSize>
+    constexpr static memType* get(Env<memType, memSize>& env){
+        std::cout << "MEM VAL: " << env.memory[n] << std::endl;
+        return &(env.memory[n]);
+    }
+};
 
 //template<uint64_t n, template<uint64_t> typename Num>
 //struct Mem<Num<n>> {
@@ -147,11 +151,22 @@ template<typename Lvalue, typename Pvalue>
 struct Mov {
     static constexpr OpType type = MOV;
 
-    template<size_t memSize, typename = void>
-    static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free);
+    template<size_t memSize>
+    static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free){};
     template<size_t memSize, typename memType, typename labels>
         static constexpr void execute(Env<memType, memSize>& env) {
         (*Lvalue::template get<memType, memSize>(env)) = env.memory[Pvalue:: template get<memType,memSize>(env)];
+    }
+};
+template<typename Lvalue, auto n>
+struct Mov<Lvalue, Num<n>> {
+    static constexpr OpType type = MOV;
+
+    template<size_t memSize>
+    static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free) {};
+    template<size_t memSize, typename memType, typename labels>
+    static constexpr void execute(Env<memType, memSize>& env) {
+        (*Lvalue::template get<memType, memSize>(env)) = env.memory[n];
     }
 };
 
@@ -237,7 +252,7 @@ struct Js {
     }
 
     template<size_t memSize, typename = void>
-    static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free);
+    static constexpr void load_variable(std::array<uint64_t, memSize> &addr, size_t &last_free){};
     static constexpr OpType type = JS;
     static constexpr uint64_t id = Id;
 };
