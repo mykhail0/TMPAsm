@@ -425,6 +425,7 @@ struct Program<Op, Ops...> {
                     //printAddr<memSize>(addr);
                 }
                 Program<Ops...>::template run<memSize, memType, labels>(env);
+                break;
             default:
                 Op::template execute<memSize, memType, labels>(env);
                 //printMemory<memSize, memType>(env.memory);
@@ -454,6 +455,12 @@ struct Program<Op> {
 //                std::cout << "JS" << std::endl;
                 if (env.SF) {
                     Op::template execute<memSize, memType, labels>(env);
+                }
+                break;
+            case DECL:
+                if (!env.vars_loaded) {
+                    Op::template execute<memSize, memType, labels>(env);
+                    //printAddr<memSize>(addr);
                 }
                 break;
             default:
