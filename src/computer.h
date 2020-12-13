@@ -545,7 +545,9 @@ struct Program<> {
     static constexpr void run(Env<memType, memSize> &) {}
 
     template<size_t memSize, typename memType, size_t var_count>
-    static constexpr void load_variables(Env<memType, memSize>&){};
+    static constexpr void load_variables(Env<memType, memSize>&) {};
+
+    static constexpr void check_program() {}
 };
 
 template<size_t N, typename Type>
