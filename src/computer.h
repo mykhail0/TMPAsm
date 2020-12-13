@@ -147,6 +147,8 @@ struct D {
 template<uint64_t id, auto val>
 struct D<id, Num<val>> {
     static constexpr OpType type = DECL;
+
+    // Only declaration with Num is valid
     static constexpr bool valid = true;
 
     // Adds id to addresses array and assigns value to the according memory cell.
@@ -276,11 +278,6 @@ struct Not {
     }
 };
 
-template<typename Label, typename Program>
-struct LabelHolder {
-    using program = Program;
-    using label = Label;
-};
 
 template<uint64_t Id>
 struct Label {
@@ -330,6 +327,13 @@ struct Js {
 };
 
 //----------------HANDLING LABELS-------------------
+
+template<typename Label, typename Program>
+struct LabelHolder {
+    using program = Program;
+    using label = Label;
+};
+
 template<typename... Labels>
 struct LabelList;
 
