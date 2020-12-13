@@ -41,6 +41,7 @@ namespace {
         // addresses[i] = id <-> id value is in memory[i]
         std::array<uint64_t, N> addresses{};
         bool ZF = false, SF = false;
+        // There could be less than N variables.
         size_t variables_cnt = 0;
 
         // Tells if variable declarations are parsed.
@@ -115,7 +116,6 @@ struct Lea {
 
     template<typename memType, size_t memSize>
     constexpr static size_t get(Env<memType, memSize> &env) {
-//        printf("lea id: %lu, addr: %lu\n", id, get_addr(id, env.addresses, env.variables_cnt));
         return get_addr(id, env.addresses, env.variables_cnt);
     }
 };
@@ -127,7 +127,6 @@ struct Mem {
     // Gets a pointer to assigned pvalue.
     template<typename memType, size_t memSize>
     constexpr static memType* get_pointer(Env<memType, memSize> &env) {
-        //std::cout << "MEM VAL: " << env.memory[pvalue::template get<memType, memSize>(env)] << std::endl;
         return &(env.memory[pvalue::template get<memType, memSize>(env)]);
     }
 
@@ -382,7 +381,6 @@ template<template<typename...> class Program, typename Label, typename... Labels
 struct LabelList<Program<>, Label, Labels...> {
     template<uint64_t id, size_t memSize, typename memType, typename labels>
     static constexpr void find_and_run(Env<memType, memSize> &env) {
-        // std::cout << Label::label::type << std::endl;
         if constexpr (Label::label::id == id) {
             Label::program::template run<memSize, memType, labels>(env);
         } else {
@@ -446,8 +444,6 @@ struct Program<Op, Ops...> {
             Program<Ops...>::template run<memSize, memType, labels>(env);
         } else {
             Op::template execute<memSize, memType, labels>(env);
-//            printMemory<memSize,memType>(env.memory);
-//            printAddr<memSize>(env.addresses);
             Program<Ops...>::template run<memSize, memType, labels>(env);
         }
     }
