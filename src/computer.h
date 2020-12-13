@@ -2,10 +2,11 @@
 #define COMPUTER_H
 
 #include <array>
-#include <iostream>
 #include <cassert>
 #include <type_traits>
 #include <limits>
+#include <cstdint>
+#include <cstddef>
 
 
 namespace {
@@ -169,7 +170,6 @@ struct Num {
 
     template<typename memType, size_t memSize>
     constexpr static auto get(Env<memType, memSize> &) {
-        //static_assert(N < memSize);
         return N;
     }
 
@@ -237,7 +237,7 @@ template<uint64_t id, auto val>
 struct D<id, Num<val>> {
     static constexpr OpType type = DECL;
 
-    // Only declaration with Num is valid
+    // Only declaration with Num is valid.
     static constexpr bool valid = true;
 
     // Adds id to addresses array and assigns value to the according memory cell.
