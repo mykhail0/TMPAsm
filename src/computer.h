@@ -2,11 +2,26 @@
 #define COMPUTER_H
 
 #include <array>
-#include <utility>
 #include <iostream>
 #include <cassert>
 #include <type_traits>
 #include <limits>
+
+
+namespace {
+    enum OpType {
+        LABEL, JMP, JZ, JS, DECL, LEA, MEM, NUM, MOV,
+        AND, OR, NOT, ADD, SUB, INC, DEC, CMP
+    };
+}
+
+template<uint64_t Id>
+struct Label {
+    static constexpr OpType type = LABEL;
+    static constexpr uint64_t id = Id;
+
+    constexpr static void check() {}
+};
 
 namespace {
     constexpr unsigned MAX_ID_LEN = 6;
@@ -54,31 +69,80 @@ namespace {
         }
     };
 
-    enum OpType {
-        LABEL, JMP, JZ, JS, DECL, LEA, MEM, NUM, MOV,
-        AND, OR, NOT, ADD, SUB, INC, DEC, CMP
+//----------------HANDLING LABELS-------------------
+    template<typename Label, typename Program>
+    struct LabelHolder {
+        using program = Program;
+        using label = Label;
+    };
+
+    template<typename... Labels>
+    struct LabelList;
+
+    // Create list
+
+    // Recursion if label
+    template<template<typename...> class Program, typename... Ops, typename... Labels, uint64_t n>
+    struct LabelList<Program<Label<n>, Ops...>, Labels...> {
+        using result =
+        typename LabelList<Program<Ops...>, Labels...,
+                LabelHolder<Label<n>, Program<Ops...>>>::result;
+    };
+
+    // Recursion otherwise
+    template<template<typename...> class Program, typename... Ops, typename Op, typename... Labels>
+    struct LabelList<Program<Op, Ops...>, Labels...> {
+        using result = typename LabelList<Program<Ops...>, Labels...>::result;
+    };
+
+    // Base case if label
+    template<template<typename...> class Program, typename... Labels, uint64_t n>
+    struct LabelList<Program<Label<n>>, Labels...> {
+        using result =
+        LabelList<Program<>, Labels..., LabelHolder<Label<n>, Program<>>>;
+    };
+
+    // Base case otherwise
+    template<template<typename...> class Program, typename Op, typename... Labels>
+    struct LabelList<Program<Op>, Labels...> {
+        using result = LabelList<Program<>, Labels...>;
+    };
+
+    // Empty program
+    template<template<typename...> class Program>
+    struct LabelList<Program<>> {
+        template<uint64_t id, size_t memSize, typename memType, typename labels>
+        static constexpr void find_and_run(Env<memType, memSize> &) {}
+
+        using result = LabelList<Program<>>;
+    };
+
+    // Handle Jump operations
+
+    // Recursion
+    template<template<typename...> class Program, typename Label, typename... Labels>
+    struct LabelList<Program<>, Label, Labels...> {
+        template<uint64_t id, size_t memSize, typename memType, typename labels>
+        static constexpr void find_and_run(Env<memType, memSize> &env) {
+            if constexpr (Label::label::id == id) {
+                Label::program::template run<memSize, memType, labels>(env);
+            } else {
+                LabelList<Program<>, Labels...>::template
+                find_and_run<id, memSize, memType, labels>(env);
+            }
+        }
+    };
+
+    // Base case
+    template<template<typename...> class Program, typename Label>
+    struct LabelList<Program<>, Label> {
+        template<uint64_t id, size_t memSize, typename memType, typename labels>
+        static constexpr void find_and_run(Env<memType, memSize> &env) {
+            static_assert(Label::label::id == id, "Label doesn't exist");
+            Label::program::template run<memSize, memType, labels>(env);
+        }
     };
 } // anonymous namespace
-
-//---------------DEBUG----------------------
-template<size_t N, typename Type>
-inline void printMemory(const std::array<Type, N> &mem) {
-    std::cout << "-----MEMORY STATE----" << std::endl;
-    for (size_t i = 0; i < N; i++) {
-        std::cout << mem[i] << std::endl;
-    }
-    std::cout << "---------" << std::endl;
-}
-
-template<size_t N>
-inline void printAddr(std::array<uint64_t, N> &mem) {
-    std::cout << "-----ADDRESS STATE----" << std::endl;
-    for (size_t i = 0; i < N; i++) {
-        std::cout << mem[i] << std::endl;
-    }
-    std::cout << "---------" << std::endl;
-}
-
 
 //-------------OPERATIONS---------------------------
 // Encodes string for id as an integer.
@@ -349,14 +413,6 @@ struct Not {
     }
 };
 
-template<uint64_t Id>
-struct Label {
-    static constexpr OpType type = LABEL;
-    static constexpr uint64_t id = Id;
-
-    constexpr static void check() {}
-};
-
 // JUMPS
 template<uint64_t Id>
 struct Jmp {
@@ -392,81 +448,6 @@ struct Js {
     }
 
     constexpr static void check() {}
-};
-
-//----------------HANDLING LABELS-------------------
-
-template<typename Label, typename Program>
-struct LabelHolder {
-    using program = Program;
-    using label = Label;
-};
-
-template<typename... Labels>
-struct LabelList;
-
-// Create list
-
-// Recursion if label
-template<template<typename...> class Program, typename... Ops, typename... Labels, uint64_t n>
-struct LabelList<Program<Label<n>, Ops...>, Labels...> {
-    using result =
-    typename LabelList<Program<Ops...>, Labels...,
-            LabelHolder<Label<n>, Program<Ops...>>>::result;
-};
-
-// Recursion otherwise
-template<template<typename...> class Program, typename... Ops, typename Op, typename... Labels>
-struct LabelList<Program<Op, Ops...>, Labels...> {
-    using result = typename LabelList<Program<Ops...>, Labels...>::result;
-};
-
-// Base case if label
-template<template<typename...> class Program, typename... Labels, uint64_t n>
-struct LabelList<Program<Label<n>>, Labels...> {
-    using result =
-    LabelList<Program<>, Labels..., LabelHolder<Label<n>, Program<>>>;
-};
-
-// Base case otherwise
-template<template<typename...> class Program, typename Op, typename... Labels>
-struct LabelList<Program<Op>, Labels...> {
-    using result = LabelList<Program<>, Labels...>;
-};
-
-// Empty program
-template<template<typename...> class Program>
-struct LabelList<Program<>> {
-    template<uint64_t id, size_t memSize, typename memType, typename labels>
-    static constexpr void find_and_run(Env<memType, memSize> &) {}
-
-    using result = LabelList<Program<>>;
-};
-
-// Handle Jump operations
-
-// Recursion
-template<template<typename...> class Program, typename Label, typename... Labels>
-struct LabelList<Program<>, Label, Labels...> {
-    template<uint64_t id, size_t memSize, typename memType, typename labels>
-    static constexpr void find_and_run(Env<memType, memSize> &env) {
-        if constexpr (Label::label::id == id) {
-            Label::program::template run<memSize, memType, labels>(env);
-        } else {
-            LabelList<Program<>, Labels...>::template
-            find_and_run<id, memSize, memType, labels>(env);
-        }
-    }
-};
-
-// Base case
-template<template<typename...> class Program, typename Label>
-struct LabelList<Program<>, Label> {
-    template<uint64_t id, size_t memSize, typename memType, typename labels>
-    static constexpr void find_and_run(Env<memType, memSize> &env) {
-        static_assert(Label::label::id == id, "Label doesn't exist");
-        Label::program::template run<memSize, memType, labels>(env);
-    }
 };
 
 //------------------PROGRAM----------------------
