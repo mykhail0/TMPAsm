@@ -101,9 +101,10 @@ template<auto N>
 struct Num {
     static constexpr OpType type = NUM;
     static_assert(std::is_integral<decltype(N)>::value, "Integral required.");
+
     template<typename memType, size_t memSize>
-    constexpr static auto get([[maybe_unused]] Env<memType, memSize>& env) {
-       return N;
+    constexpr static auto get([[maybe_unused]] Env<memType, memSize> &env) {
+        return N;
     }
 };
 
@@ -111,8 +112,10 @@ struct Num {
 template<uint64_t id>
 struct Lea {
     static constexpr OpType type = LEA;
+
     template<typename memType, size_t memSize>
-    constexpr static size_t get(Env<memType, memSize>& env) {
+    constexpr static size_t get(Env<memType, memSize> &env) {
+//        printf("lea id: %lu, addr: %lu\n", id, get_addr(id, env.addresses, env.variables_cnt));
         return get_addr(id, env.addresses, env.variables_cnt);
     }
 };
@@ -120,9 +123,10 @@ struct Lea {
 template<typename pvalue>
 struct Mem {
     static constexpr OpType type = MEM;
+
     // Gets a pointer to assigned pvalue.
     template<typename memType, size_t memSize>
-    constexpr static memType* get_pointer(Env<memType, memSize>& env){
+    constexpr static memType* get_pointer(Env<memType, memSize> &env) {
         //std::cout << "MEM VAL: " << env.memory[pvalue::template get<memType, memSize>(env)] << std::endl;
         return &(env.memory[pvalue::template get<memType, memSize>(env)]);
     }
@@ -137,45 +141,43 @@ struct Mem {
 template<uint64_t id, typename T>
 struct D {
     static constexpr OpType type = DECL;
-    template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute([[maybe_unused]] Env<memType, memSize> &env) {
-        throw "Value is not Num.";
-    }
+    static constexpr bool valid = false;
 };
 
 template<uint64_t id, auto val>
 struct D<id, Num<val>> {
     static constexpr OpType type = DECL;
+    static constexpr bool valid = true;
+
     // Adds id to addresses array and assigns value to the according memory cell.
     // Does not execute if there is no free memory. (Executes if used in the expression
     // to evaluate some constexpr variable)
-    template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(Env<memType, memSize> &env) {
-        assert(env.variables_cnt < memSize);
-        // Redeclaration does not change addresses.
-        if (get_addr<memSize>(id, env.addresses, env.variables_cnt) == env.variables_cnt) {
-            env.addresses[env.variables_cnt] = id;
-        //env.memory[env.variables_cnt++] = static_cast<memType>(val);
-        }
-        env.memory[env.variables_cnt++] = static_cast<memType>(val);
+    template<size_t memSize, typename memType, size_t var_count>
+    static constexpr void load_variable(Env<memType, memSize>& env) {
+        static_assert(var_count < memSize);
+        if (get_addr<memSize>(id, env.addresses, var_count) == var_count)
+            env.addresses[var_count] = id;
+        env.memory[var_count] = static_cast<memType>(val);
     }
 };
 
 template<typename Lvalue, typename Pvalue>
 struct Mov {
     static constexpr OpType type = MOV;
+
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(Env<memType, memSize>& env) {
-        (*Lvalue::template get_pointer<memType, memSize>(env)) = Pvalue:: template get<memType,memSize>(env);
+    static constexpr void execute(Env<memType, memSize> &env) {
+        (*Lvalue::template get_pointer<memType, memSize>(env)) = Pvalue::template get<memType, memSize>(env);
     }
 };
 
 template<typename Lvalue, typename Pvalue>
 struct Add {
     static constexpr OpType type = ADD;
+
     // Lvalue += Pvalue
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(Env<memType, memSize>& env) {
+    static constexpr void execute(Env<memType, memSize> &env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
         memType pval = Pvalue::template get<memType, memSize>(env);
         *lval += pval;
@@ -186,9 +188,10 @@ struct Add {
 template<typename Lvalue, typename Pvalue>
 struct Sub {
     static constexpr OpType type = SUB;
+
     // Lvalue -= Pvalue
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(Env<memType, memSize>& env) {
+    static constexpr void execute(Env<memType, memSize> &env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
         memType pval = Pvalue::template get<memType, memSize>(env);
         *lval -= pval;
@@ -199,9 +202,10 @@ struct Sub {
 template<typename Arg1, typename Arg2>
 struct Cmp {
     static constexpr OpType type = CMP;
+
     // Same as Cmp but Arg1 does not change.
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(Env<memType, memSize>& env) {
+    static constexpr void execute(Env<memType, memSize> &env) {
         memType val = Arg1::template get<memType, memSize>(env) - Arg2::template get<memType, memSize>(env);
         env.update_flags(val);
     }
@@ -210,9 +214,10 @@ struct Cmp {
 template<typename Lvalue>
 struct Inc {
     static constexpr OpType type = INC;
+
     // Increases Lvalue by one.
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(Env<memType, memSize>& env) {
+    static constexpr void execute(Env<memType, memSize> &env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
         ++(*lval);
         env.update_flags(*lval);
@@ -222,9 +227,10 @@ struct Inc {
 template<typename Lvalue>
 struct Dec {
     static constexpr OpType type = DEC;
+
     // Decreases Lvalue by one.
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(Env<memType, memSize>& env) {
+    static constexpr void execute(Env<memType, memSize> &env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
         --(*lval);
         env.update_flags(*lval);
@@ -234,9 +240,10 @@ struct Dec {
 template<typename Lvalue, typename Pvalue>
 struct And {
     static constexpr OpType type = AND;
+
     // Lvalue &= Pvalue
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(Env<memType, memSize>& env) {
+    static constexpr void execute(Env<memType, memSize> &env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
         *lval &= Pvalue::template get<memType, memSize>(env);
         env.ZF = *lval == 0;
@@ -246,9 +253,10 @@ struct And {
 template<typename Lvalue, typename Pvalue>
 struct Or {
     static constexpr OpType type = OR;
+
     // Lvalue |= Pvalue
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(Env<memType, memSize>& env) {
+    static constexpr void execute(Env<memType, memSize> &env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
         *lval |= Pvalue::template get<memType, memSize>(env);
         env.ZF = *lval == 0;
@@ -258,16 +266,16 @@ struct Or {
 template<typename Lvalue>
 struct Not {
     static constexpr OpType type = NOT;
+
     // Lvalue ~= Lvalue
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(Env<memType, memSize>& env) {
+    static constexpr void execute(Env<memType, memSize> &env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
         *lval = ~(*lval);
         env.ZF = *lval == 0;
     }
 };
 
-// LABELS
 template<typename Label, typename Program>
 struct LabelHolder {
     using program = Program;
@@ -279,7 +287,7 @@ struct Label {
     static constexpr OpType type = LABEL;
 
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute([[maybe_unused]] Env<memType, memSize>& env) {}
+    static constexpr void execute([[maybe_unused]] Env<memType, memSize> &env) {}
 
     static constexpr uint64_t id = Id;
 };
@@ -290,8 +298,8 @@ struct Jmp {
     static constexpr OpType type = JMP;
 
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(Env<memType, memSize>& env) {
-        labels::template find_and_run<Id,memSize, memType, labels>(env);
+    static constexpr void execute(Env<memType, memSize> &env) {
+        labels::template find_and_run<Id, memSize, memType, labels>(env);
     }
 
     static constexpr uint64_t id = Id;
@@ -302,8 +310,8 @@ struct Jz {
     static constexpr OpType type = JZ;
 
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(Env<memType, memSize>& env) {
-        labels::template find_and_run<Id,memSize, memType, labels>(env);
+    static constexpr void execute(Env<memType, memSize> &env) {
+        labels::template find_and_run<Id, memSize, memType, labels>(env);
     }
 
     static constexpr uint64_t id = Id;
@@ -312,9 +320,10 @@ struct Jz {
 template<uint64_t Id>
 struct Js {
     static constexpr OpType type = JS;
+
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute(Env<memType, memSize>& env) {
-        labels::template find_and_run<Id,memSize, memType, labels>(env);
+    static constexpr void execute(Env<memType, memSize> &env) {
+        labels::template find_and_run<Id, memSize, memType, labels>(env);
     }
 
     static constexpr uint64_t id = Id;
@@ -326,7 +335,7 @@ struct LabelList;
 
 // Create list
 
-// recursion if label
+// Recursion if label
 template<template<typename...> class Program, typename... Ops, typename... Labels, uint64_t n>
 struct LabelList<Program<Label<n>, Ops...>, Labels...> {
     using result =
@@ -334,42 +343,43 @@ struct LabelList<Program<Label<n>, Ops...>, Labels...> {
             LabelHolder<Label<n>, Program<Ops...>>>::result;
 };
 
-// recursion otherwise
+// Recursion otherwise
 template<template<typename...> class Program, typename... Ops, typename Op, typename... Labels>
 struct LabelList<Program<Op, Ops...>, Labels...> {
     using result = typename LabelList<Program<Ops...>, Labels...>::result;
 };
 
-// base case if label
+// Base case if label
 template<template<typename...> class Program, typename... Labels, uint64_t n>
 struct LabelList<Program<Label<n>>, Labels...> {
     using result =
     LabelList<Program<>, Labels..., LabelHolder<Label<n>, Program<>>>;
 };
 
-// base case otherwise
+// Base case otherwise
 template<template<typename...> class Program, typename Op, typename... Labels>
 struct LabelList<Program<Op>, Labels...> {
     using result = LabelList<Program<>, Labels...>;
 };
 
-//empty program
+// Empty program
 template<template<typename...> class Program>
 struct LabelList<Program<>> {
     template<uint64_t id, size_t memSize, typename memType, typename labels>
-    static constexpr void find_and_run(Env<memType, memSize>&) {}
+    static constexpr void find_and_run(Env<memType, memSize> &) {}
+
     using result = LabelList<Program<>>;
 };
 
 // Handle Jump operations
 
-// recursion
+// Recursion
 template<template<typename...> class Program, typename Label, typename... Labels>
 struct LabelList<Program<>, Label, Labels...> {
     template<uint64_t id, size_t memSize, typename memType, typename labels>
-    static constexpr void find_and_run(Env<memType,memSize>& env) {
+    static constexpr void find_and_run(Env<memType, memSize> &env) {
         // std::cout << Label::label::type << std::endl;
-        if (Label::label::id == id) {
+        if constexpr (Label::label::id == id) {
             Label::program::template run<memSize, memType, labels>(env);
         } else {
             LabelList<Program<>, Labels...>::template
@@ -378,7 +388,7 @@ struct LabelList<Program<>, Label, Labels...> {
     }
 };
 
-// base case
+// Base case
 template<template<typename...> class Program, typename Label>
 struct LabelList<Program<>, Label> {
     template<uint64_t id, size_t memSize, typename memType, typename labels>
@@ -390,100 +400,97 @@ struct LabelList<Program<>, Label> {
 
 //------------------PROGRAM----------------------
 template<typename... Ops>
-struct Program {
-    template<size_t memSize, typename memType, typename labels>
-    static constexpr void run(Env<memType, memSize>& env);
-};
+struct Program;
 
+// Recursion
 template<typename Op, typename... Ops>
 struct Program<Op, Ops...> {
-    // recursion call
-    template<size_t memSize, typename memType, typename labels>
-    static constexpr void run(Env<memType, memSize>& env) {
-        if (env.vars_loaded) {
-            switch (Op::type) {
-                case JMP:
-//                std::cout << "JUMP" << std::endl;
-                    Op::template execute<memSize, memType, labels>(env);
-                    break;
-                case JZ:
-//                std::cout << "JUMPZ" << std::endl;
-                    if (env.ZF) {
-                        Op::template execute<memSize, memType, labels>(env);
-                    } else {
-                        Program<Ops...>::template run<memSize, memType, labels>(env);
-                    }
-                    break;
-                case JS:
-//                std::cout << "JUMPS" << std::endl;
-                    if (env.SF) {
-                        Op::template execute<memSize, memType, labels>(env);
-                    } else {
-                        Program<Ops...>::template run<memSize, memType, labels>(env);
-                    }
-                    break;
-                case DECL:
-                    Program<Ops...>::template run<memSize, memType, labels>(env);
-                    break;
-                default:
-                    Op::template execute<memSize, memType, labels>(env);
-                    //printMemory<memSize, memType>(env.memory);
-                    Program<Ops...>::template run<memSize, memType, labels>(env);
-                    break;
-            }
+    template<size_t memSize, typename memType, size_t var_count>
+    static constexpr void load_variables(Env<memType,memSize>& env) {
+        if constexpr (Op::type == DECL) {
+            // Error if declaration doesn't have Num as argument.
+            static_assert(Op::valid);
+            Op::template load_variable<memSize ,memType, var_count>(env);
+            //There is now one more variable, so execute next call with var_count + 1.
+            Program<Ops...>::template load_variables<memSize, memType, var_count+1>(env);
         } else {
-            if (Op::type == DECL) {
+            Program<Ops...>::template load_variables<memSize, memType, var_count>(env);
+        }
+    }
+
+    template<size_t memSize, typename memType, typename labels>
+    static constexpr void run(Env<memType, memSize> &env) {
+        if constexpr(Op::type == JMP) {
+            // Jump and then don't execute current program again.
+            Op::template execute<memSize, memType, labels>(env);
+        } else if constexpr(Op::type == JZ) {
+            // Jump or execute current program.
+            if (env.ZF) {
                 Op::template execute<memSize, memType, labels>(env);
-                //printAddr<memSize, memType>(env.addresses);
+            } else {
+                Program<Ops...>::template run<memSize, memType, labels>(env);
             }
+        } else if constexpr(Op::type == JS) {
+            // Jump or execute current program.
+            if (env.SF) {
+                Op::template execute<memSize, memType, labels>(env);
+            } else {
+                Program<Ops...>::template run<memSize, memType, labels>(env);
+            }
+        } else if constexpr(Op::type == DECL || Op::type == LABEL) {
+            // Skip these instructions.
+            Program<Ops...>::template run<memSize, memType, labels>(env);
+        } else {
+            Op::template execute<memSize, memType, labels>(env);
+//            printMemory<memSize,memType>(env.memory);
+//            printAddr<memSize>(env.addresses);
             Program<Ops...>::template run<memSize, memType, labels>(env);
         }
     }
 };
 
+// Base case
 template<typename Op>
 struct Program<Op> {
-    // base of recursion
-    template<size_t memSize, typename memType, typename labels>
-    static constexpr void run(Env<memType, memSize>& env) {
-        if (env.vars_loaded) {
-            switch (Op::type) {
-                case JMP:
-//                std::cout << "JMP" << std::endl;
-                    Op::template execute<memSize, memType, labels>(env);
-                    break;
-                case JZ:
-//                std::cout << "JZ" << std::endl;
-                    if (env.ZF) {
-                        Op::template execute<memSize, memType, labels>(env);
-                    }
-                    break;
-                case JS:
-//                std::cout << "JS" << std::endl;
-                    if (env.SF) {
-                        Op::template execute<memSize, memType, labels>(env);
-                    }
-                    break;
-                case DECL:
-                    break;
-                default:
-                    Op::template execute<memSize, memType, labels>(env);
-//                    printMemory<memSize, memType>(env.memory);
-                    break;
-            }
+    template<size_t memSize, typename memType, size_t var_count>
+    static constexpr void load_variables(Env<memType, memSize>& env) {
+        if constexpr (Op::type == DECL) {
+            static_assert(Op::valid);
+            Op::template load_variable<memSize, memType, var_count>(env);
+            // This is last recursion call so I can set number of variables to env.
+            env.variables_cnt = var_count + 1;
         } else {
-            if (Op::type == DECL) {
+            env.variables_cnt = var_count;
+
+        }
+    }
+
+    template<size_t memSize, typename memType, typename labels>
+    static constexpr void run(Env<memType, memSize> &env) {
+        if constexpr(Op::type == JZ) {
+            if (env.ZF) {
                 Op::template execute<memSize, memType, labels>(env);
             }
+        } else if constexpr(Op::type == JS) {
+            if (env.SF) {
+                Op::template execute<memSize, memType, labels>(env);
+            }
+        } else if constexpr(Op::type == DECL || Op::type == LABEL) {
+            // Skip these instructions.
+        } else {
+            Op::template execute<memSize, memType, labels>(env);
         }
     }
 };
 
-//empty program
+// Empty program
 template<>
 struct Program<> {
     template<size_t memSize, typename memType, typename labels>
-    static constexpr void run([[maybe_unused]] Env<memType, memSize>& env) {}
+    static constexpr void run(Env<memType, memSize> &) {}
+
+    template<size_t memSize, typename memType, size_t var_count>
+    static constexpr void load_variables(Env<memType, memSize>&){};
 };
 
 template<size_t N, typename Type>
@@ -492,14 +499,13 @@ struct Computer {
     static constexpr std::array<Type, N> boot() {
         static_assert(std::is_integral<Type>::value, "Computer requires integral types.");
 
-        Env<Type,N> env;
+        Env<Type, N> env;
 
         // Parsing labels.
         using labels = typename LabelList<T>::result;
 
         // Loading variables.
-        T::template run<N, Type, labels>(env);
-        env.vars_loaded = true;
+        T::template load_variables<N, Type, 0>(env);
 
         // Executing the program.
         T::template run<N, Type, labels>(env);
