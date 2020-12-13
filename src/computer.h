@@ -133,7 +133,7 @@ struct Num {
     static_assert(std::is_integral<decltype(N)>::value, "Integral required.");
 
     template<typename memType, size_t memSize>
-    constexpr static auto get([[maybe_unused]] Env<memType, memSize> &env) {
+    constexpr static auto get(Env<memType, memSize> &) {
         return N;
     }
 };
@@ -196,7 +196,7 @@ struct Mov {
     static constexpr OpType type = MOV;
 
     // Lvalue = Pvalue
-    template<size_t memSize, typename memType, typename labels>
+    template<size_t memSize, typename memType>
     static constexpr void execute(Env<memType, memSize> &env) {
         (*Lvalue::template get_pointer<memType, memSize>(env)) = static_cast<memType>(Pvalue::template get<memType, memSize>(env));
     }
@@ -207,10 +207,10 @@ struct Add {
     static constexpr OpType type = ADD;
 
     // Lvalue += Pvalue
-    template<size_t memSize, typename memType, typename labels>
+    template<size_t memSize, typename memType>
     static constexpr void execute(Env<memType, memSize> &env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
-        memType pval = static_cast<memType>(Pvalue::template get<memType, memSize>(env));
+        auto pval = static_cast<memType>(Pvalue::template get<memType, memSize>(env));
         *lval += pval;
         env.update_flags(*lval);
     }
@@ -221,10 +221,10 @@ struct Sub {
     static constexpr OpType type = SUB;
 
     // Lvalue -= Pvalue
-    template<size_t memSize, typename memType, typename labels>
+    template<size_t memSize, typename memType>
     static constexpr void execute(Env<memType, memSize> &env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
-        memType pval = static_cast<memType>(Pvalue::template get<memType, memSize>(env));
+        auto pval = static_cast<memType>(Pvalue::template get<memType, memSize>(env));
         *lval -= pval;
         env.update_flags(*lval);
     }
@@ -235,9 +235,9 @@ struct Cmp {
     static constexpr OpType type = CMP;
 
     // Same as Cmp but Arg1 does not change.
-    template<size_t memSize, typename memType, typename labels>
+    template<size_t memSize, typename memType>
     static constexpr void execute(Env<memType, memSize> &env) {
-        memType val = static_cast<memType>(Arg1::template get<memType, memSize>(env)) - static_cast<memType>(Arg2::template get<memType, memSize>(env));
+        auto val = static_cast<memType>(Arg1::template get<memType, memSize>(env)) - static_cast<memType>(Arg2::template get<memType, memSize>(env));
         env.update_flags(val);
     }
 };
@@ -247,7 +247,7 @@ struct Inc {
     static constexpr OpType type = INC;
 
     // Increases Lvalue by one.
-    template<size_t memSize, typename memType, typename labels>
+    template<size_t memSize, typename memType>
     static constexpr void execute(Env<memType, memSize> &env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
         *lval += 1;
@@ -260,7 +260,7 @@ struct Dec {
     static constexpr OpType type = DEC;
 
     // Decreases Lvalue by one.
-    template<size_t memSize, typename memType, typename labels>
+    template<size_t memSize, typename memType>
     static constexpr void execute(Env<memType, memSize> &env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
         *lval -= 1;
@@ -273,7 +273,7 @@ struct And {
     static constexpr OpType type = AND;
 
     // Lvalue &= Pvalue
-    template<size_t memSize, typename memType, typename labels>
+    template<size_t memSize, typename memType>
     static constexpr void execute(Env<memType, memSize> &env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
         *lval &= static_cast<memType>(Pvalue::template get<memType, memSize>(env));
@@ -286,7 +286,7 @@ struct Or {
     static constexpr OpType type = OR;
 
     // Lvalue |= Pvalue
-    template<size_t memSize, typename memType, typename labels>
+    template<size_t memSize, typename memType>
     static constexpr void execute(Env<memType, memSize> &env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
         *lval |= static_cast<memType>(Pvalue::template get<memType, memSize>(env));
@@ -299,7 +299,7 @@ struct Not {
     static constexpr OpType type = NOT;
 
     // Lvalue ~= Lvalue
-    template<size_t memSize, typename memType, typename labels>
+    template<size_t memSize, typename memType>
     static constexpr void execute(Env<memType, memSize> &env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
         *lval = ~(*lval);
@@ -310,10 +310,6 @@ struct Not {
 template<uint64_t Id>
 struct Label {
     static constexpr OpType type = LABEL;
-
-    template<size_t memSize, typename memType, typename labels>
-    static constexpr void execute([[maybe_unused]] Env<memType, memSize> &env) {}
-
     static constexpr uint64_t id = Id;
 };
 
@@ -326,8 +322,6 @@ struct Jmp {
     static constexpr void execute(Env<memType, memSize> &env) {
         labels::template find_and_run<Id, memSize, memType, labels>(env);
     }
-
-    static constexpr uint64_t id = Id;
 };
 
 template<uint64_t Id>
@@ -338,8 +332,6 @@ struct Jz {
     static constexpr void execute(Env<memType, memSize> &env) {
         labels::template find_and_run<Id, memSize, memType, labels>(env);
     }
-
-    static constexpr uint64_t id = Id;
 };
 
 template<uint64_t Id>
@@ -350,8 +342,6 @@ struct Js {
     static constexpr void execute(Env<memType, memSize> &env) {
         labels::template find_and_run<Id, memSize, memType, labels>(env);
     }
-
-    static constexpr uint64_t id = Id;
 };
 
 //----------------HANDLING LABELS-------------------
@@ -472,7 +462,7 @@ struct Program<Op, Ops...> {
             // Skip these instructions.
             Program<Ops...>::template run<memSize, memType, labels>(env);
         } else {
-            Op::template execute<memSize, memType, labels>(env);
+            Op::template execute<memSize, memType>(env);
             Program<Ops...>::template run<memSize, memType, labels>(env);
         }
     }
@@ -500,7 +490,7 @@ struct Program<Op> {
                 Op::template execute<memSize, memType, labels>(env);
             }
         } else if constexpr(Op::type != DECL && Op::type != LABEL) {
-            Op::template execute<memSize, memType, labels>(env);
+            Op::template execute<memSize, memType>(env);
         }
     }
 };
