@@ -108,6 +108,7 @@ struct Num {
         //static_assert(N < memSize);
         return N;
     }
+
     constexpr static void check_pvalue() {}
 };
 
@@ -122,6 +123,7 @@ struct Lea {
         assert(addr != env.variables_cnt);
         return addr;
     }
+
     constexpr static void check_pvalue() {}
 };
 
@@ -135,7 +137,8 @@ struct Mem {
         auto addr = pvalue::template get<memType, memSize>(env);
         // Checking if address matches with unsigned version of memType.
         assert(addr >= 0);
-        assert(static_cast<typename std::make_unsigned<decltype(addr)>::type>(addr) <= std::numeric_limits<typename std::make_unsigned<memType>::type>::max());
+        assert(static_cast<typename std::make_unsigned<decltype(addr)>::type>(addr) <=
+               std::numeric_limits<typename std::make_unsigned<memType>::type>::max());
         return &(env.memory[addr]);
     }
 
@@ -145,12 +148,15 @@ struct Mem {
         auto addr = pvalue::template get<memType, memSize>(env);
         // Checking if address matches with unsigned version of memType.
         assert(addr >= 0);
-        assert(static_cast<typename std::make_unsigned<decltype(addr)>::type>(addr) <= std::numeric_limits<typename std::make_unsigned<memType>::type>::max());
+        assert(static_cast<typename std::make_unsigned<decltype(addr)>::type>(addr) <=
+               std::numeric_limits<typename std::make_unsigned<memType>::type>::max());
         return env.memory[addr];
     }
+
     constexpr static void check_lvalue() {
         pvalue::check_pvalue();
     }
+
     constexpr static void check_pvalue() {
         pvalue::check_pvalue();
     }
@@ -173,12 +179,13 @@ struct D<id, Num<val>> {
     // Adds id to addresses array and assigns value to the according memory cell.
     // Does not execute if there is no free memory.
     template<size_t memSize, typename memType, size_t var_count>
-    static constexpr void load_variable(Env<memType, memSize>& env) {
+    static constexpr void load_variable(Env<memType, memSize> &env) {
         static_assert(var_count < memSize);
         if (get_addr<memSize>(id, env.addresses, var_count) == var_count)
             env.addresses[var_count] = id;
         env.memory[var_count] = static_cast<memType>(val);
     }
+
     constexpr static void check() {}
 };
 
@@ -189,8 +196,10 @@ struct Mov {
     // Lvalue = Pvalue
     template<size_t memSize, typename memType>
     static constexpr void execute(Env<memType, memSize> &env) {
-        (*Lvalue::template get_pointer<memType, memSize>(env)) = static_cast<memType>(Pvalue::template get<memType, memSize>(env));
+        (*Lvalue::template get_pointer<memType, memSize>(env)) =
+                static_cast<memType>(Pvalue::template get<memType, memSize>(env));
     }
+
     constexpr static void check() {
         Lvalue::check_lvalue();
         Pvalue::check_pvalue();
@@ -209,6 +218,7 @@ struct Add {
         *lval += pval;
         env.update_flags(*lval);
     }
+
     constexpr static void check() {
         Lvalue::check_lvalue();
         Pvalue::check_pvalue();
@@ -227,6 +237,7 @@ struct Sub {
         *lval -= pval;
         env.update_flags(*lval);
     }
+
     constexpr static void check() {
         Lvalue::check_lvalue();
         Pvalue::check_pvalue();
@@ -240,9 +251,11 @@ struct Cmp {
     // Same as Cmp but Arg1 does not change.
     template<size_t memSize, typename memType>
     static constexpr void execute(Env<memType, memSize> &env) {
-        auto val = static_cast<memType>(Arg1::template get<memType, memSize>(env)) - static_cast<memType>(Arg2::template get<memType, memSize>(env));
+        auto val = static_cast<memType>(Arg1::template get<memType, memSize>(env)) -
+                   static_cast<memType>(Arg2::template get<memType, memSize>(env));
         env.update_flags(val);
     }
+
     constexpr static void check() {
         Arg1::check_pvalue();
         Arg2::check_pvalue();
@@ -260,6 +273,7 @@ struct Inc {
         *lval += 1;
         env.update_flags(*lval);
     }
+
     constexpr static void check() {
         Lvalue::check_lvalue();
     }
@@ -276,6 +290,7 @@ struct Dec {
         *lval -= 1;
         env.update_flags(*lval);
     }
+
     constexpr static void check() {
         Lvalue::check_lvalue();
     }
@@ -292,6 +307,7 @@ struct And {
         *lval &= static_cast<memType>(Pvalue::template get<memType, memSize>(env));
         env.ZF = *lval == 0;
     }
+
     constexpr static void check() {
         Lvalue::check_lvalue();
         Pvalue::check_pvalue();
@@ -309,6 +325,7 @@ struct Or {
         *lval |= static_cast<memType>(Pvalue::template get<memType, memSize>(env));
         env.ZF = *lval == 0;
     }
+
     constexpr static void check() {
         Lvalue::check_lvalue();
         Pvalue::check_pvalue();
@@ -326,6 +343,7 @@ struct Not {
         *lval = ~(*lval);
         env.ZF = *lval == 0;
     }
+
     constexpr static void check() {
         Lvalue::check_lvalue();
     }
@@ -335,6 +353,7 @@ template<uint64_t Id>
 struct Label {
     static constexpr OpType type = LABEL;
     static constexpr uint64_t id = Id;
+
     constexpr static void check() {}
 };
 
@@ -347,6 +366,7 @@ struct Jmp {
     static constexpr void execute(Env<memType, memSize> &env) {
         labels::template find_and_run<Id, memSize, memType, labels>(env);
     }
+
     constexpr static void check() {}
 };
 
@@ -358,6 +378,7 @@ struct Jz {
     static constexpr void execute(Env<memType, memSize> &env) {
         labels::template find_and_run<Id, memSize, memType, labels>(env);
     }
+
     constexpr static void check() {}
 };
 
@@ -369,6 +390,7 @@ struct Js {
     static constexpr void execute(Env<memType, memSize> &env) {
         labels::template find_and_run<Id, memSize, memType, labels>(env);
     }
+
     constexpr static void check() {}
 };
 
@@ -441,7 +463,7 @@ struct LabelList<Program<>, Label, Labels...> {
 template<template<typename...> class Program, typename Label>
 struct LabelList<Program<>, Label> {
     template<uint64_t id, size_t memSize, typename memType, typename labels>
-    static constexpr void find_and_run(Env<memType, memSize>& env) {
+    static constexpr void find_and_run(Env<memType, memSize> &env) {
         static_assert(Label::label::id == id, "Label doesn't exist");
         Label::program::template run<memSize, memType, labels>(env);
     }
@@ -461,13 +483,13 @@ struct Program<Op, Ops...> {
     }
 
     template<size_t memSize, typename memType, size_t var_count>
-    static constexpr void load_variables(Env<memType,memSize>& env) {
+    static constexpr void load_variables(Env<memType, memSize> &env) {
         if constexpr (Op::type == DECL) {
             // Error if declaration doesn't have Num as argument.
             static_assert(Op::valid);
-            Op::template load_variable<memSize ,memType, var_count>(env);
+            Op::template load_variable<memSize, memType, var_count>(env);
             //There is now one more variable, so execute next call with var_count + 1.
-            Program<Ops...>::template load_variables<memSize, memType, var_count+1>(env);
+            Program<Ops...>::template load_variables<memSize, memType, var_count + 1>(env);
         } else {
             Program<Ops...>::template load_variables<memSize, memType, var_count>(env);
         }
@@ -511,7 +533,7 @@ struct Program<Op> {
     }
 
     template<size_t memSize, typename memType, size_t var_count>
-    static constexpr void load_variables(Env<memType, memSize>& env) {
+    static constexpr void load_variables(Env<memType, memSize> &env) {
         if constexpr (Op::type == DECL) {
             static_assert(Op::valid);
             Op::template load_variable<memSize, memType, var_count>(env);
@@ -545,7 +567,7 @@ struct Program<> {
     static constexpr void run(Env<memType, memSize> &) {}
 
     template<size_t memSize, typename memType, size_t var_count>
-    static constexpr void load_variables(Env<memType, memSize>&) {};
+    static constexpr void load_variables(Env<memType, memSize> &) {};
 
     static constexpr void check_program() {}
 };
@@ -558,6 +580,7 @@ struct Computer {
         static_assert(!std::is_same<Type, bool>::value, "Bool does not have unsigned version");
 
         Env<Type, N> env;
+
         //check syntax
         T::check_program();
 
