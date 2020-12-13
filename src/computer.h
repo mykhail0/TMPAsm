@@ -6,6 +6,7 @@
 #include <iostream>
 #include <cassert>
 #include <type_traits>
+#include <limits>
 
 namespace {
     constexpr unsigned MAX_ID_LEN = 6;
@@ -25,21 +26,7 @@ namespace {
         throw "Character out of range";
     }
 
-/*
-    template<size_t memSize, size_t sz, size_t var_count, uint64_t elem, uint64_t id, bool declaration>
-    constexpr size_t get_addr(std::array<uint64_t, memSize> &addr) {
-        if constexpr (elem == id)
-            return var_count;
-        else if constexpr (var_count + 1 < sz) {
-            return get_addr<memSize, sz, var_count + 1, addr[var_count + 1], declaration>(addr);
-        } else {
-            static_assert(declaration);
-            return var_count;
-        }
-    }
-*/
-
-    // struct D helper function, gets variable address whose Id is id.
+    // struct D and Lea helper function, gets variable address whose Id is id.
     // Otherwise returns size.
     template<size_t memSize>
     constexpr size_t get_addr(uint64_t id, std::array<uint64_t, memSize> &addr, size_t sz) {
@@ -48,19 +35,6 @@ namespace {
                 return i;
         }
         return sz;
-    }
-
-    // Lea helper function, gets variable address whose Id is id.
-    // Otherwise gets error because out of bounds.
-    template<size_t memSize>
-    constexpr size_t get_addr(uint64_t id, std::array<uint64_t, memSize> &addr) {
-        size_t i = 0;
-        while (true) {
-            if (addr[i] == id)
-                return i;
-            i++;
-        }
-        //return sz;
     }
 
     // Describes Computer state.
@@ -72,9 +46,6 @@ namespace {
         bool ZF = false, SF = false;
         // There could be less than N variables.
         size_t variables_cnt = 0;
-
-        // Tells if variable declarations are parsed.
-        bool vars_loaded = false;
 
         // Updates flags after an arithmetic operation.
         constexpr void update_flags(memType val) {
@@ -134,6 +105,7 @@ struct Num {
 
     template<typename memType, size_t memSize>
     constexpr static auto get(Env<memType, memSize> &) {
+        //static_assert(N < memSize);
         return N;
     }
 };
@@ -145,7 +117,9 @@ struct Lea {
 
     template<typename memType, size_t memSize>
     constexpr static size_t get(Env<memType, memSize> &env) {
-        return get_addr<memSize>(id, env.addresses);
+        size_t addr = get_addr<memSize>(id, env.addresses, env.variables_cnt);
+        assert(addr != env.variables_cnt);
+        return addr;
     }
 };
 
@@ -156,13 +130,21 @@ struct Mem {
     // Gets a pointer to assigned pvalue.
     template<typename memType, size_t memSize>
     constexpr static memType* get_pointer(Env<memType, memSize> &env) {
-        return &(env.memory[pvalue::template get<memType, memSize>(env)]);
+        auto addr = pvalue::template get<memType, memSize>(env);
+        // Checking if address matches with unsigned version of memType.
+        assert(addr >= 0);
+        assert(static_cast<typename std::make_unsigned<decltype(addr)>::type>(addr) <= std::numeric_limits<typename std::make_unsigned<memType>::type>::max());
+        return &(env.memory[addr]);
     }
 
     // Gets a value of assigned pvalue.
     template<typename memType, size_t memSize>
     constexpr static memType get(Env<memType, memSize> &env) {
-        return env.memory[pvalue::template get<memType, memSize>(env)];
+        auto addr = pvalue::template get<memType, memSize>(env);
+        // Checking if address matches with unsigned version of memType.
+        assert(addr >= 0);
+        assert(static_cast<typename std::make_unsigned<decltype(addr)>::type>(addr) <= std::numeric_limits<typename std::make_unsigned<memType>::type>::max());
+        return env.memory[addr];
     }
 };
 
@@ -476,6 +458,10 @@ struct Program<Op> {
         if constexpr (Op::type == DECL) {
             static_assert(Op::valid);
             Op::template load_variable<memSize, memType, var_count>(env);
+            // This is last recursion call so I can set number of variables to env.
+            env.variables_cnt = var_count + 1;
+        } else {
+            env.variables_cnt = var_count;
         }
     }
 
@@ -510,6 +496,7 @@ struct Computer {
     template<typename T>
     static constexpr std::array<Type, N> boot() {
         static_assert(std::is_integral<Type>::value, "Computer requires integral types.");
+        static_assert(!std::is_same<Type, bool>::value, "Bool does not have unsigned version");
 
         Env<Type, N> env;
 
