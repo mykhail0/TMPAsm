@@ -14,17 +14,33 @@ namespace {
     constexpr int ALLOWED_CHAR_CNT = ('z' - 'a' + 1) + ('9' - '0' + 1);
 
     // Id helper function, encodes a single character.
+    // No character maps to 0.
     constexpr int encode_char(char c) {
         if ('0' <= c && c <= '9')
-            return static_cast<int>(c) - '0';
+            return static_cast<int>(c) - '0' + 1;
         if ('a' <= c && c <= 'z')
-            return c - 'a' + 10;
+            return c - 'a' + 11;
         if ('A' <= c && c <= 'Z')
-            return c - 'A' + 10;
+            return c - 'A' + 11;
         throw "Character out of range";
     }
 
-    // Lea helper function, gets variable address whose Id is id.
+/*
+    template<size_t memSize, size_t sz, size_t var_count, uint64_t elem, uint64_t id, bool declaration>
+    constexpr size_t get_addr(std::array<uint64_t, memSize> &addr) {
+        if constexpr (elem == id)
+            return var_count;
+        else if constexpr (var_count + 1 < sz) {
+            return get_addr<memSize, sz, var_count + 1, addr[var_count + 1], declaration>(addr);
+        } else {
+            static_assert(declaration);
+            return var_count;
+        }
+    }
+*/
+
+    // struct D helper function, gets variable address whose Id is id.
+    // Otherwise returns size.
     template<size_t memSize>
     constexpr size_t get_addr(uint64_t id, std::array<uint64_t, memSize> &addr, size_t sz) {
         for (size_t i = 0; i < sz; ++i) {
@@ -32,6 +48,19 @@ namespace {
                 return i;
         }
         return sz;
+    }
+
+    // Lea helper function, gets variable address whose Id is id.
+    // Otherwise gets error because out of bounds.
+    template<size_t memSize>
+    constexpr size_t get_addr(uint64_t id, std::array<uint64_t, memSize> &addr) {
+        size_t i = 0;
+        while (true) {
+            if (addr[i] == id)
+                return i;
+            i++;
+        }
+        //return sz;
     }
 
     // Describes Computer state.
@@ -55,7 +84,7 @@ namespace {
     };
 
     enum OpType {
-        TEST, LABEL, JMP, JZ, JS, DECL, LEA, MEM, NUM, MOV,
+        LABEL, JMP, JZ, JS, DECL, LEA, MEM, NUM, MOV,
         AND, OR, NOT, ADD, SUB, INC, DEC, CMP
     };
 } // anonymous namespace
@@ -116,7 +145,7 @@ struct Lea {
 
     template<typename memType, size_t memSize>
     constexpr static size_t get(Env<memType, memSize> &env) {
-        return get_addr(id, env.addresses, env.variables_cnt);
+        return get_addr<memSize>(id, env.addresses);
     }
 };
 
@@ -221,7 +250,7 @@ struct Inc {
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize> &env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
-        ++(*lval);
+        *lval += 1;
         env.update_flags(*lval);
     }
 };
@@ -234,7 +263,7 @@ struct Dec {
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize> &env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
-        --(*lval);
+        *lval -= 1;
         env.update_flags(*lval);
     }
 };
@@ -457,11 +486,6 @@ struct Program<Op> {
         if constexpr (Op::type == DECL) {
             static_assert(Op::valid);
             Op::template load_variable<memSize, memType, var_count>(env);
-            // This is last recursion call so I can set number of variables to env.
-            env.variables_cnt = var_count + 1;
-        } else {
-            env.variables_cnt = var_count;
-
         }
     }
 
