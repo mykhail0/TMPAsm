@@ -141,6 +141,7 @@ struct Mem {
 template<uint64_t id, typename T>
 struct D {
     static constexpr OpType type = DECL;
+    // Declaration with types different from Num is not valid.
     static constexpr bool valid = false;
 };
 
@@ -152,8 +153,7 @@ struct D<id, Num<val>> {
     static constexpr bool valid = true;
 
     // Adds id to addresses array and assigns value to the according memory cell.
-    // Does not execute if there is no free memory. (Executes if used in the expression
-    // to evaluate some constexpr variable)
+    // Does not execute if there is no free memory.
     template<size_t memSize, typename memType, size_t var_count>
     static constexpr void load_variable(Env<memType, memSize>& env) {
         static_assert(var_count < memSize);
@@ -167,9 +167,10 @@ template<typename Lvalue, typename Pvalue>
 struct Mov {
     static constexpr OpType type = MOV;
 
+    // Lvalue = Pvalue
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize> &env) {
-        (*Lvalue::template get_pointer<memType, memSize>(env)) = Pvalue::template get<memType, memSize>(env);
+        (*Lvalue::template get_pointer<memType, memSize>(env)) = static_cast<memType>(Pvalue::template get<memType, memSize>(env));
     }
 };
 
@@ -181,7 +182,7 @@ struct Add {
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize> &env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
-        memType pval = Pvalue::template get<memType, memSize>(env);
+        memType pval = static_cast<memType>(Pvalue::template get<memType, memSize>(env));
         *lval += pval;
         env.update_flags(*lval);
     }
@@ -195,7 +196,7 @@ struct Sub {
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize> &env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
-        memType pval = Pvalue::template get<memType, memSize>(env);
+        memType pval = static_cast<memType>(Pvalue::template get<memType, memSize>(env));
         *lval -= pval;
         env.update_flags(*lval);
     }
@@ -208,7 +209,7 @@ struct Cmp {
     // Same as Cmp but Arg1 does not change.
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize> &env) {
-        memType val = Arg1::template get<memType, memSize>(env) - Arg2::template get<memType, memSize>(env);
+        memType val = static_cast<memType>(Arg1::template get<memType, memSize>(env)) - static_cast<memType>(Arg2::template get<memType, memSize>(env));
         env.update_flags(val);
     }
 };
@@ -247,7 +248,7 @@ struct And {
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize> &env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
-        *lval &= Pvalue::template get<memType, memSize>(env);
+        *lval &= static_cast<memType>(Pvalue::template get<memType, memSize>(env));
         env.ZF = *lval == 0;
     }
 };
@@ -260,7 +261,7 @@ struct Or {
     template<size_t memSize, typename memType, typename labels>
     static constexpr void execute(Env<memType, memSize> &env) {
         memType* lval = Lvalue::template get_pointer<memType, memSize>(env);
-        *lval |= Pvalue::template get<memType, memSize>(env);
+        *lval |= static_cast<memType>(Pvalue::template get<memType, memSize>(env));
         env.ZF = *lval == 0;
     }
 };
@@ -277,7 +278,6 @@ struct Not {
         env.ZF = *lval == 0;
     }
 };
-
 
 template<uint64_t Id>
 struct Label {
@@ -479,9 +479,7 @@ struct Program<Op> {
             if (env.SF) {
                 Op::template execute<memSize, memType, labels>(env);
             }
-        } else if constexpr(Op::type == DECL || Op::type == LABEL) {
-            // Skip these instructions.
-        } else {
+        } else if constexpr(Op::type != DECL && Op::type != LABEL) {
             Op::template execute<memSize, memType, labels>(env);
         }
     }
